@@ -83,25 +83,9 @@ func gen_cert() (*tls.Config, error) {
 		return nil, serr
 	}
 
-	gen_cert_file(gencertfile, certPEM.Bytes(), certPrivKeyPEM.Bytes())
-
 	serverTLSConf := &tls.Config{
 		Certificates: []tls.Certificate{serverCert},
 	}
 
 	return serverTLSConf, nil
-}
-
-func gen_cert_file(file string, cert, key []byte) {
-	if default_gen_cert_file(file) {
-		return
-	}
-	Log(LOG_DEBUG, "Attempting to write certificate to file "+file)
-	err := file_rewrite(file, append(key, cert...))
-	if err != nil {
-		Log_error("Failed to write certificate.\n" + err.Error())
-		Launch_fail()
-		return
-	}
-	Log(LOG_DEBUG, "Certificate and key successfully written to "+file)
 }

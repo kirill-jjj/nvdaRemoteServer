@@ -2,34 +2,26 @@ package server
 
 import (
 	"os"
+	"runtime"
 )
 
 var PS string = string(os.PathSeparator)
 
+// Configuration file defaults mirror the Python NVDARemoteServer.
 var (
 	DEFAULT_CONF_FILE string = ""
-	DEFAULT_CONF_NAME string = "nvdaRemoteServer.json"
-	DEFAULT_CONF_DIR  string
+	DEFAULT_CONF_NAME string = "NVDARemoteServer.conf"
 )
 
-var DEFAULT_CONF_READ bool = true
-
 var (
-	DEFAULT_GEN_CONF_FILE string = ""
-	DEFAULT_GEN_CONF_DIR  bool   = false
-)
-
-var DEFAULT_ADDRESS string = ":6837"
-
-var (
-	DEFAULT_CERT_FILE     string = ""
-	DEFAULT_KEY_FILE      string = ""
-	DEFAULT_GEN_CERT_FILE string = ""
+	DEFAULT_CERT_FILE string = ""
+	DEFAULT_KEY_FILE  string = ""
 )
 
 var DEFAULT_LOG_FILE string = ""
 
-var DEFAULT_LOG_LEVEL int = 0
+// The Python server defaults to log level 2.
+var DEFAULT_LOG_LEVEL int = 2
 
 const (
 	LOG_SILENT     int = -1
@@ -45,21 +37,14 @@ var (
 	DEFAULT_MOTD_ALWAYS_DISPLAY bool   = false
 )
 
-var DEFAULT_SEND_ORIGIN bool = true
-
-var DEFAULT_CREATE_DIR bool = false
-
-var DEFAULT_LAUNCH bool = true
-
 var DEFAULT_PID_FILE string = ""
 
-// Ported from the Python NVDARemoteServer: options that allow
-// configuring the TLS handshake timeout, the client ping interval,
-// the maximum incoming message length and separate IPv4/IPv6
-// interfaces and ports.
+// Options ported from the Python server: TLS handshake timeout, client
+// ping interval (300 seconds, as in Python), maximum incoming message
+// length and separate IPv4/IPv6 interfaces and ports.
 var (
 	DEFAULT_TIMEOUT_SECS float64 = 5.0
-	DEFAULT_PING_TIME    int     = 120
+	DEFAULT_PING_TIME    int     = 300
 	DEFAULT_MAX_MSG_LEN  int     = 0
 )
 
@@ -71,15 +56,21 @@ var (
 )
 
 func init() {
-	dcd, err := os.UserConfigDir()
-	if err != nil {
-		dcd = "."
+	switch runtime.GOOS {
+	case "linux":
+		// Same defaults as the Python server on Linux.
+		DEFAULT_CONF_FILE = "/etc/NVDARemoteServer.conf"
+		DEFAULT_CERT_FILE = "/usr/share/NVDARemoteServer/server.pem"
+		DEFAULT_LOG_FILE = "/var/log/NVDARemoteServer/NVDARemoteServer.log"
+		DEFAULT_PID_FILE = "/run/NVDARemoteServer/NVDARemoteServer.pid"
+	case "darwin":
+		DEFAULT_CONF_FILE = "/etc/NVDARemoteServer.conf"
+		DEFAULT_CERT_FILE = "/usr/share/NVDARemoteServer/server.pem"
+		DEFAULT_LOG_FILE = "/var/log/NVDARemoteServer/NVDARemoteServer.log"
+		DEFAULT_PID_FILE = "/var/run/NVDARemoteServer.pid"
+	default:
+		// Windows and other systems: empty defaults, like Python.
 	}
-	DEFAULT_CONF_DIR = dcd + PS + "nvdaRemoteServer"
-}
-
-func default_conf_file(p string) bool {
-	return (p == DEFAULT_CONF_FILE)
 }
 
 func default_pid_file(p string) bool {
@@ -94,16 +85,6 @@ func default_log_level(p int) bool {
 	return (p == DEFAULT_LOG_LEVEL)
 }
 
-func default_addresses(p AddressList) bool {
-	if len(p) == 1 && p[0] == DEFAULT_ADDRESS {
-		return true
-	}
-	if len(p) == 0 {
-		return true
-	}
-	return false
-}
-
 func default_cert_file(p string) bool {
 	return (p == DEFAULT_CERT_FILE)
 }
@@ -112,32 +93,12 @@ func default_key_file(p string) bool {
 	return (p == DEFAULT_KEY_FILE)
 }
 
-func default_gen_cert_file(p string) bool {
-	return (p == DEFAULT_GEN_CERT_FILE)
-}
-
 func default_motd(p string) bool {
 	return (p == DEFAULT_MOTD)
 }
 
 func default_motd_always_display(p bool) bool {
 	return (p == DEFAULT_MOTD_ALWAYS_DISPLAY)
-}
-
-func default_send_origin(p bool) bool {
-	return (p == DEFAULT_SEND_ORIGIN)
-}
-
-func default_gen_conf_file(p string) bool {
-	return (p == DEFAULT_GEN_CONF_FILE)
-}
-
-func default_gen_conf_dir(p bool) bool {
-	return (p == DEFAULT_GEN_CONF_DIR)
-}
-
-func default_conf_read(p bool) bool {
-	return (p == DEFAULT_CONF_READ)
 }
 
 func default_timeout_secs(p float64) bool {

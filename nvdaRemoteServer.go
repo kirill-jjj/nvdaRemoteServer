@@ -17,10 +17,6 @@ import (
 
 var Version string = "development"
 
-// Default PID file used by the daemon commands when -pid-file is not
-// given on the command line.
-const daemonPidFile string = "/tmp/nvdaRemoteServer.pid"
-
 func main() {
 	Version = strings.TrimPrefix(versionSetter(), "v")
 	args()
@@ -28,11 +24,8 @@ func main() {
 	defer Log_close()
 	err := Configure()
 	if err != nil {
-		if Launch {
-			Log_close()
-			os.Exit(1)
-		}
-		return
+		Log_close()
+		os.Exit(1)
 	}
 	num := Start()
 	if num == 0 {
@@ -88,17 +81,17 @@ func args() {
 }
 
 // findPidFile returns the PID file path from the given command line
-// arguments, or the default daemon PID file if not specified.
+// arguments, or the server's default PID file if not specified.
 func findPidFile(args []string) string {
 	for i, a := range args {
-		if a == "-pid-file" && i+1 < len(args) {
+		if a == "-pidfile" && i+1 < len(args) {
 			return args[i+1]
 		}
-		if strings.HasPrefix(a, "-pid-file=") {
-			return strings.TrimPrefix(a, "-pid-file=")
+		if strings.HasPrefix(a, "-pidfile=") {
+			return strings.TrimPrefix(a, "-pidfile=")
 		}
 	}
-	return daemonPidFile
+	return DEFAULT_PID_FILE
 }
 
 func readPid(path string) (int, error) {
@@ -207,13 +200,13 @@ func daemonStart(rest []string, pidfile string) {
 	childArgs := make([]string, 0, len(rest)+2)
 	hasPidFile := false
 	for _, a := range rest {
-		if a == "-pid-file" || strings.HasPrefix(a, "-pid-file=") {
+		if a == "-pidfile" || strings.HasPrefix(a, "-pidfile=") {
 			hasPidFile = true
 		}
 		childArgs = append(childArgs, a)
 	}
 	if !hasPidFile {
-		childArgs = append(childArgs, "-pid-file", pidfile)
+		childArgs = append(childArgs, "-pidfile", pidfile)
 	}
 	cmd := exec.Command(exe, childArgs...)
 	cmd.Stdin = nil

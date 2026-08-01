@@ -112,16 +112,16 @@ func MessageReceived(c *Client, pmsg []byte) {
 	}
 	cc := c.GetChannel()
 	if cc != nil {
-		if sendOrigin {
-			pmsg, err = JsonAdd(pmsg, "origin", id)
-			if err != nil {
-				Log(LOG_DEBUG, "Error adding origin to message from client "+strconv.Itoa(id)+".\r\n"+err.Error()+"\r\nSending to all clients without origin field.")
-				// Non-JSON data (raw NVDA remote protocol messages)
-				// are relayed to every client in the channel, mirroring
-				// the Python server's send_data_to_others behavior.
-				cc.SendAll(pmsg, c)
-				return
-			}
+		// The origin field is always added, mirroring the Python
+		// server, which has no option to disable it.
+		pmsg, err = JsonAdd(pmsg, "origin", id)
+		if err != nil {
+			Log(LOG_DEBUG, "Error adding origin to message from client "+strconv.Itoa(id)+".\r\n"+err.Error()+"\r\nSending to all clients without origin field.")
+			// Non-JSON data (raw NVDA remote protocol messages)
+			// are relayed to every client in the channel, mirroring
+			// the Python server's send_data_to_others behavior.
+			cc.SendAll(pmsg, c)
+			return
 		}
 		cc.SendOthers(pmsg, c)
 		return
