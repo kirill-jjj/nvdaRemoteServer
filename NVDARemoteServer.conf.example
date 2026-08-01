@@ -1,0 +1,60 @@
+# NVDARemoteServer configuration file (Python format)
+# Copy this file to /etc/NVDARemoteServer.conf (or pass it with
+# -configfile) and edit to taste.
+#
+# Format: option=value, one per line. Lines starting with '#' are
+# comments. Unknown options are ignored, so a configuration file
+# written for the Python NVDARemoteServer works as is.
+#
+# Priority: defaults < this file < command line flags.
+
+# TCP port for IPv4 connections (1-65535). Default: 6837.
+port=6837
+
+# TCP port for IPv6 connections. Default: same as port.
+port6=6837
+
+# IPv4 interface to listen on. Empty means all IPv4 interfaces.
+#interface=0.0.0.0
+
+# IPv6 interface to listen on. Empty means all IPv6 interfaces.
+#interface6=::
+
+# TLS certificate and key. Both may point to the same PEM file.
+# If the file does not exist, a self-signed certificate is generated
+# in memory automatically, so these can stay commented out.
+#certfile=/usr/share/NVDARemoteServer/server.pem
+#keyfile=/usr/share/NVDARemoteServer/server.pem
+
+# Log file, in addition to the console. Default on Linux:
+# /var/log/NVDARemoteServer/NVDARemoteServer.log
+#logfile=/var/log/NVDARemoteServer/NVDARemoteServer.log
+
+# PID file, written after the server has started, removed on shutdown.
+#pidfile=/run/NVDARemoteServer/NVDARemoteServer.pid
+
+# Log level: -1 errors only, 0 start/stop, 1 connections,
+# 2 channels (contains passwords - not for production!),
+# 3 everything, 4 raw protocol. Default: 2.
+loglevel=2
+
+# Message of the day, sent to clients when they join.
+#motd=Welcome to my server!
+
+# Force the MOTD to display even if unchanged since the last connect.
+motd_force_display=0
+
+# Accepted for Python compatibility; this Go server has no tracebacks.
+includeTracebacks=0
+
+# Maximum length of incoming client messages in characters; clients
+# sending longer messages are disconnected. 0 means no limit.
+allowedMessageLength=0
+
+# Seconds a client may stay connected without negotiating TLS before
+# being dropped. Values below 1.0 reset to the default (5.0).
+timeout=5.0
+
+# Seconds between application-level pings to all clients.
+# Values below 30 reset to the default (300).
+ping_time=300
