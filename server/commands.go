@@ -90,7 +90,12 @@ func init() {
 	})
 
 	cmd_add("generate_key", func(c *Client, db *Data) {
-		key := gen_key()
+		key, err := gen_key()
+		if err != nil {
+			Log_error("Unable to generate a key for client " + strconv.Itoa(c.GetID()) + "\r\n" + err.Error() + "\r\nClosing connection.")
+			c.Close()
+			return
+		}
 		enc, encerr := Encode(Data{
 			Type: "generate_key",
 			Key:  key,
