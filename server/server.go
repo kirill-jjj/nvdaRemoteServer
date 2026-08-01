@@ -4,12 +4,13 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 )
 
 var (
 	sl         sync.Mutex
 	EndMessage byte = '\n'
-	lastID     int  = 0
+	lastID     atomic.Int32
 	clients    map[*Client]struct{}
 	channels   map[string]*ClientChannel
 )
@@ -17,13 +18,13 @@ var (
 func AddClient(c *Client) {
 	sl.Lock()
 	defer sl.Unlock()
-	lastID++
-	c.SetID(lastID)
+	id := int(lastID.Add(1))
+	c.SetID(id)
 	if clients == nil {
 		clients = make(map[*Client]struct{})
 	}
 	clients[c] = struct{}{}
-	Log(LOG_CONNECTION, "Client "+strconv.Itoa(lastID)+" has connected from "+c.GetIP())
+	Log(LOG_CONNECTION, "Client "+strconv.Itoa(id)+" has connected from "+c.GetIP())
 }
 
 func FindClient(c *Client) bool {

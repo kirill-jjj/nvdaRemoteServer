@@ -1,7 +1,7 @@
 package server
 
 import (
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -129,10 +129,10 @@ func (c *ClientChannel) Add(client *Client, password string) {
 			scdb.UserIds = nil
 			scdb.Clients = nil
 		} else if len(scdb.UserIds) > 1 {
-			sort.Ints(scdb.UserIds)
-			sort.SliceStable(scdb.Clients,
-				func(i, j int) bool {
-					return scdb.Clients[i].ID < scdb.Clients[j].ID
+			slices.Sort(scdb.UserIds)
+			slices.SortStableFunc(scdb.Clients,
+				func(a, b ClientData) int {
+					return a.ID - b.ID
 				})
 		}
 	}

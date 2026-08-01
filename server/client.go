@@ -115,28 +115,55 @@ func (c *Client) listen() {
 	reader := bufio.NewReader(c.conn)
 	EndMessage := c.messageTerminator
 	c.Unlock()
-	// Send data to client.
+	// Send data to client. Messages are written through a buffered
+	// writer: multiple queued messages are batched into fewer syscalls,
+	// which matters a lot for the NVDA remote protocol with its many
+	// small relayed events. The buffer is flushed immediately when the
+	// queue is empty (low latency) or by a ticker while a continuous
+	// stream of messages is flowing (batching). The buffered writer
+	// also copies the message bytes, so the same message slice can be
+	// safely handed to many clients (SendAll), which the previous
+	// append(b, EndMessage) approach did not guarantee.
 	c.sd = make(chan []byte, 100)
 	go func() {
-		for b := range c.sd {
-			if len(b) == 0 {
-				c.Close()
-				return
+		bw := bufio.NewWriterSize(c.conn, 16*1024)
+		flushTicker := time.NewTicker(5 * time.Millisecond)
+		defer flushTicker.Stop()
+		for {
+			select {
+			case b, ok := <-c.sd:
+				if !ok {
+					// Channel closed: the connection is being torn
+					// down, nothing left to flush.
+					return
+				}
+				if len(b) == 0 {
+					c.Close()
+					return
+				}
+				Log(LOG_PROTOCOL, "Data sent to client "+idstr+"\r\n"+string(b))
+				_ = c.conn.SetWriteDeadline(time.Now().Add(time.Duration(write_sec) * time.Second))
+				if _, err := bw.Write(b); err != nil {
+					Log(LOG_DEBUG, "Error sending message to client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+					c.Close()
+					return
+				}
+				_ = bw.WriteByte(EndMessage)
+				if len(c.sd) == 0 {
+					if err := bw.Flush(); err != nil {
+						Log(LOG_DEBUG, "Error sending data to client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+						c.Close()
+						return
+					}
+				}
+				c.t.Reset(time.Duration(pingTime) * time.Second)
+			case <-flushTicker.C:
+				if err := bw.Flush(); err != nil {
+					Log(LOG_DEBUG, "Error flushing data to client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+					c.Close()
+					return
+				}
 			}
-			Log(LOG_PROTOCOL, "Data sent to client "+idstr+"\r\n"+string(b))
-			_ = c.conn.SetWriteDeadline(time.Now().Add(time.Duration(write_sec) * time.Second))
-			num, err := c.conn.Write(append(b, EndMessage))
-			if err != nil {
-				Log(LOG_DEBUG, "Error sending message to client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
-				c.Close()
-				return
-			}
-			if num < len(b)+1 {
-				Log(LOG_DEBUG, "Error sending data to client "+idstr+". There were "+strconv.Itoa(num)+" bytes sent to the client, but the client should have been sent "+strconv.Itoa(len(b)+1)+" bytes. Closing connection.")
-				c.Close()
-				return
-			}
-			c.t.Reset(time.Duration(pingTime) * time.Second)
 		}
 	}()
 	// Stopping and pinging our client
