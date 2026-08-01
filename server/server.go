@@ -105,7 +105,6 @@ func RemoveChannel(name string) {
 }
 
 func MessageReceived(c *Client, pmsg []byte) {
-	var err error
 	id := c.GetID()
 	if !FindClient(c) {
 		Log_error("A client object was not found from the connection receiving a message, number " + strconv.Itoa(id) + ". Unexpected behavior encountered. Closing connection.")
@@ -115,7 +114,7 @@ func MessageReceived(c *Client, pmsg []byte) {
 	if cc != nil {
 		// The origin field is always added, mirroring the Python
 		// server, which has no option to disable it.
-		pmsg, err = JsonAdd(pmsg, "origin", id)
+		pmsg, err := JsonAdd(pmsg, "origin", id)
 		if err != nil {
 			Log(LOG_DEBUG, "Error adding origin to message from client "+strconv.Itoa(id)+".\r\n"+err.Error()+"\r\nSending to all clients without origin field.")
 			// Non-JSON data (raw NVDA remote protocol messages)
@@ -127,18 +126,15 @@ func MessageReceived(c *Client, pmsg []byte) {
 		cc.SendOthers(pmsg, c)
 		return
 	}
-	authErr := Authorize(c, pmsg)
-	if authErr != nil {
-		Log(LOG_DEBUG, "Authorization failure for client "+strconv.Itoa(id)+".\r\n"+authErr.Error())
-		c.Close()
-		runtime.Goexit()
-	}
-}
-
-func Authorize(c *Client, data []byte) error {
-	decode, err := Decode(data)
+	// Not in a channel yet: parse and dispatch. Mirrors Python's
+	// parse(): data that doesn't parse as JSON, messages without a
+	// "type", and unknown commands are all ignored without closing
+	// the connection (the Python server's send_data_to_others just
+	// finds nobody with the same password and returns).
+	decode, err := Decode(pmsg)
 	if err != nil {
-		return err
+		Log(LOG_DEBUG, "Unable to parse message from client "+strconv.Itoa(id)+", ignoring.\r\n"+err.Error())
+		return
 	}
-	return cmd_exec(c, &decode)
+	cmd_exec(c, &decode)
 }

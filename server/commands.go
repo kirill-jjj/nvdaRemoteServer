@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"strconv"
 	"time"
 )
@@ -17,16 +16,23 @@ func cmd_add(cmd string, cfunc func(*Client, *Data)) {
 	command[cmd] = cfunc
 }
 
-func cmd_exec(c *Client, db *Data) error {
+// cmd_exec mirrors the Python server's parse(): a message without a
+// "type" field, or with an unknown type, is silently ignored (only
+// logged), never an error and never a reason to close the connection.
+// The Python server doesn't know the do_<cmd> methods either; it just
+// does nothing, so new NVDA Remote client commands won't kill
+// established connections.
+func cmd_exec(c *Client, db *Data) {
 	cmd := db.Type
 	if cmd == "" {
-		return errors.New("Invalid parameters received, a command cannot be blank.")
+		Log(LOG_DEBUG, "Received message without a type from client "+strconv.Itoa(c.GetID())+", ignoring")
+		return
 	}
 	if !cmd_exists(cmd) {
-		return errors.New("The command " + cmd + " does not exist.")
+		Log(LOG_DEBUG, "Unknown command "+cmd+" from client "+strconv.Itoa(c.GetID())+", ignoring")
+		return
 	}
 	command[cmd](c, db)
-	return nil
 }
 
 func init() {
@@ -54,11 +60,13 @@ func init() {
 			})
 			if encerr == nil {
 				c.Send(enc)
-				return
 			} else {
 				Log(LOG_DEBUG, "JSON encoding error for client "+strconv.Itoa(c.GetID())+"\r\n"+encerr.Error())
-				return
 			}
+			// The Python server sets canClose=True after sending the
+			// invalid_parameters error, closing the connection.
+			c.Close()
+			return
 		}
 
 		c.SetConnectionType(db.ConnectionType)
@@ -71,19 +79,10 @@ func init() {
 	})
 
 	cmd_add("protocol_version", func(c *Client, db *Data) {
+		// Python: version = obj.get('version'); if not version: return
 		if db.Version <= 0 {
-			Log(LOG_DEBUG, "Client "+strconv.Itoa(c.GetID())+" has tried to register an invalid version number.")
-			enc, encerr := Encode(Data{
-				Type:  "error",
-				Error: "invalid_parameters",
-			})
-			if encerr == nil {
-				c.Send(enc)
-				return
-			} else {
-				Log(LOG_DEBUG, "JSON encoding error for client "+strconv.Itoa(c.GetID()))
-				return
-			}
+			Log(LOG_DEBUG, "Client "+strconv.Itoa(c.GetID())+" has tried to register an invalid version number, ignoring")
+			return
 		}
 		c.SetVersion(db.Version)
 		Log(LOG_DEBUG, "Client "+strconv.Itoa(c.GetID())+" has set protocol version "+strconv.Itoa(db.Version)+".")

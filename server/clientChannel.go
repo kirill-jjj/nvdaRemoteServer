@@ -253,33 +253,30 @@ func (c *ClientChannel) SendAll(msg []byte, client *Client) {
 	}
 }
 
+// SendOthers relays a message to every other client in the channel,
+// mirroring the Python server's parse(): when the sender is the only
+// client in the channel they get an "nvda_not_connected" notice,
+// otherwise the message goes to everyone except the sender.
+//
+// Note: the original Go server only relayed master -> slaves and
+// slave -> masters and blocked unauthorized masters. The Python server
+// has no authorization at all (any client in the channel relays to
+// everyone), so this matches Python. Locked channels are still
+// protected by their full name, which the client must know.
 func (c *ClientChannel) SendOthers(msg []byte, client *Client) {
 	if client == nil {
 		return
 	}
-	connection := client.GetConnectionType()
-	var clients map[int]*Client
-	auth := client.GetAuthorized()
 	c.Lock()
-	switch connection {
-	case connTypeMaster:
-		clients = c.ClientsSlave
-	case connTypeSlave:
-		clients = c.ClientsMaster
-	default:
-		clients = c.ClientsAll
-	}
+	n := len(c.ClientsAll)
 	c.Unlock()
-	if len(clients) == 0 {
-		if connection == connTypeMaster {
-			client.Send([]byte("{\"type\":\"nvda_not_connected\"}"))
-		}
+	if n <= 1 {
+		client.Send([]byte(`{"type":"nvda_not_connected"}`))
 		return
 	}
-	if connection == connTypeMaster && !auth {
-		return
-	}
-	for _, sc := range clients {
+	c.Lock()
+	defer c.Unlock()
+	for _, sc := range c.ClientsAll {
 		if sc == client {
 			continue
 		}
