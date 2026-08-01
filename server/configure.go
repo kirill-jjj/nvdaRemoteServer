@@ -245,7 +245,6 @@ func Start() int {
 	}
 
 	Log(LOG_DEBUG, "Number of servers started: "+strconv.Itoa(num))
-	go signals_init()
 	return num
 }
 

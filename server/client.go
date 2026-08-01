@@ -207,7 +207,7 @@ func (c *Client) listen() {
 		message, err := reader.ReadBytes(EndMessage)
 		if err != nil {
 			msl.Lock()
-			if !stoppingServers {
+			if Mctx.Err() == nil {
 				c.Lock()
 				if !c.closed {
 					if !errors.Is(err, io.EOF) {

@@ -16,8 +16,11 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -33,14 +36,20 @@ type Server struct {
 }
 
 var (
-	mctx            context.Context
-	StopServers     context.CancelFunc
-	msl             sync.Mutex
-	stoppingServers bool = false
+	Mctx        context.Context
+	StopServers context.CancelFunc
+	msl         sync.Mutex
 )
 
+// init wires OS signals (Ctrl+C, SIGTERM, SIGQUIT) straight into the
+// global context via signal.NotifyContext: when the operator stops the
+// server (keyboard interrupt, "kill", or the stop/restart daemon
+// commands sending SIGTERM), Mctx is cancelled automatically and every
+// server and client goroutine that derived its context from Mctx starts
+// shutting down. This replaces the original signals/ package with its
+// manual channel + signal.Notify + signals_init() helper.
 func init() {
-	mctx, StopServers = context.WithCancel(context.Background())
+	Mctx, StopServers = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 }
 
 // Set message terminator.
@@ -67,7 +76,7 @@ func (s *Server) Listen() error {
 		return err
 	}
 	s.Lock()
-	s.ctx, s.Stop = context.WithCancel(mctx)
+	s.ctx, s.Stop = context.WithCancel(Mctx)
 	s.Add(1)
 	s.Unlock()
 	go s.accept(listener)
@@ -82,7 +91,7 @@ func (s *Server) accept(listener net.Listener) {
 	go func() {
 		<-s.ctx.Done()
 		msl.Lock()
-		if !stoppingServers {
+		if Mctx.Err() == nil {
 			Log(LOG_DEBUG, "The server at "+address+" has received a signal to stop.")
 		}
 		msl.Unlock()
@@ -93,7 +102,7 @@ func (s *Server) accept(listener net.Listener) {
 		conn, err := listener.Accept()
 		if err != nil {
 			msl.Lock()
-			if !stoppingServers {
+			if Mctx.Err() == nil {
 				Log(LOG_DEBUG, "Error accepting connections on the server at "+address+"\r\n"+err.Error()+"\r\nStopping server.")
 			}
 			msl.Unlock()

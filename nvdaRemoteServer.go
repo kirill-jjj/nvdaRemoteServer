@@ -37,6 +37,9 @@ func main() {
 	PidfileSet()
 	Log(LOG_INFO, "Server started. Running under PID "+PID_STR+". Server version "+Version)
 	wait()
+	if Mctx.Err() != nil {
+		Log(LOG_INFO, "Shutdown signal received, stopping servers.")
+	}
 	Shutdown()
 	Log(LOG_INFO, "Server shutdown complete.")
 }
