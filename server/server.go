@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	sl         sync.Mutex
+	sl         sync.RWMutex
 	EndMessage byte = '\n'
 	lastID     atomic.Int32
 	clients    map[*Client]struct{}
@@ -28,8 +28,8 @@ func AddClient(c *Client) {
 }
 
 func FindClient(c *Client) bool {
-	sl.Lock()
-	defer sl.Unlock()
+	sl.RLock()
+	defer sl.RUnlock()
 	if clients == nil {
 		return false
 	}
@@ -77,8 +77,8 @@ func AddChannel(name, password string, locked bool, c *Client) {
 }
 
 func FindChannel(name string) *ClientChannel {
-	sl.Lock()
-	defer sl.Unlock()
+	sl.RLock()
+	defer sl.RUnlock()
 	if channels == nil {
 		return nil
 	}
@@ -90,12 +90,14 @@ func FindChannel(name string) *ClientChannel {
 }
 
 func RemoveChannel(name string) {
-	c := FindChannel(name)
-	if c == nil {
-		return
-	}
 	sl.Lock()
 	defer sl.Unlock()
+	if channels == nil {
+		return
+	}
+	if _, exists := channels[name]; !exists {
+		return
+	}
 	delete(channels, name)
 	Log(LOG_CHANNEL, "Channel "+name+" has been removed.")
 	if len(channels) == 0 {

@@ -13,7 +13,7 @@ const (
 )
 
 type ClientChannel struct {
-	sync.Mutex
+	sync.RWMutex
 	name          string
 	password      string
 	locked        bool
@@ -101,7 +101,7 @@ func (c *ClientChannel) Add(client *Client, password string) {
 	}
 	enc, encerr := Encode(scdb)
 	if encerr == nil {
-		c.SendAll(enc, client)
+		c.sendAllLocked(enc, client)
 	} else {
 		Log(LOG_DEBUG, "Error encoding JSON for client "+strconv.Itoa(id)+" while trying to add them to channel "+c.name+"\r\n"+encerr.Error())
 	}
@@ -207,7 +207,7 @@ func (c *ClientChannel) Remove(client *Client) {
 	}
 	enc, encerr := Encode(scdb)
 	if encerr == nil {
-		c.SendAll(enc, client)
+		c.sendAllLocked(enc, client)
 	}
 	Log(LOG_CHANNEL, "Client "+strconv.Itoa(id)+" has left channel "+c.name)
 }
@@ -241,7 +241,10 @@ func (c *ClientChannel) Quit() {
 	RemoveChannel(c.name)
 }
 
-func (c *ClientChannel) SendAll(msg []byte, client *Client) {
+// sendAllLocked relays msg to every client in the channel except the
+// excluded one. The caller must hold the channel's write lock (Add and
+// Remove call it from inside their Lock section).
+func (c *ClientChannel) sendAllLocked(msg []byte, client *Client) {
 	if len(c.ClientsAll) == 0 {
 		return
 	}
@@ -251,6 +254,17 @@ func (c *ClientChannel) SendAll(msg []byte, client *Client) {
 		}
 		sc.Send(msg)
 	}
+}
+
+// SendAll relays msg to every client in the channel except the
+// excluded one. Taking the read lock here fixes a data race: the raw
+// relay path (MessageReceived with non-JSON data) used to iterate the
+// client map without any lock while a concurrent join or disconnect
+// mutated it, which can panic with "concurrent map read and map write".
+func (c *ClientChannel) SendAll(msg []byte, client *Client) {
+	c.RLock()
+	defer c.RUnlock()
+	c.sendAllLocked(msg, client)
 }
 
 // SendOthers relays a message to every other client in the channel,
@@ -267,15 +281,15 @@ func (c *ClientChannel) SendOthers(msg []byte, client *Client) {
 	if client == nil {
 		return
 	}
-	c.Lock()
+	c.RLock()
 	n := len(c.ClientsAll)
-	c.Unlock()
+	c.RUnlock()
 	if n <= 1 {
 		client.Send([]byte(`{"type":"nvda_not_connected"}`))
 		return
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	for _, sc := range c.ClientsAll {
 		if sc == client {
 			continue
@@ -285,8 +299,8 @@ func (c *ClientChannel) SendOthers(msg []byte, client *Client) {
 }
 
 func (c *ClientChannel) Name() string {
-	c.Lock()
-	defer c.Unlock()
+	c.RLock()
+	defer c.RUnlock()
 	return c.name
 }
 

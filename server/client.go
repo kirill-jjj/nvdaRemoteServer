@@ -18,7 +18,7 @@ var ping_msg = []byte(`{"type":"ping"}`)
 const write_sec int = 8
 
 type Client struct {
-	sync.Mutex
+	sync.RWMutex
 	conn              net.Conn
 	messageTerminator byte
 	connectionType    string
@@ -48,14 +48,14 @@ func (c *Client) SetChannel(clientChannel *ClientChannel) {
 }
 
 func (c *Client) GetChannel() *ClientChannel {
-	defer c.Unlock()
-	c.Lock()
+	defer c.RUnlock()
+	c.RLock()
 	return c.c
 }
 
 func (c *Client) GetID() int {
-	defer c.Unlock()
-	c.Lock()
+	defer c.RUnlock()
+	c.RLock()
 	return c.id
 }
 
@@ -66,27 +66,27 @@ func (c *Client) SetID(id int) {
 }
 
 func (c *Client) GetAuthorized() bool {
-	defer c.Unlock()
-	c.Lock()
+	defer c.RUnlock()
+	c.RLock()
 	return c.auth
+}
+
+func (c *Client) GetIP() string {
+	defer c.RUnlock()
+	c.RLock()
+	return c.ip
+}
+
+func (c *Client) GetConnectionType() string {
+	defer c.RUnlock()
+	c.RLock()
+	return c.connectionType
 }
 
 func (c *Client) SetAuthorized(auth bool) {
 	defer c.Unlock()
 	c.Lock()
 	c.auth = auth
-}
-
-func (c *Client) GetIP() string {
-	defer c.Unlock()
-	c.Lock()
-	return c.ip
-}
-
-func (c *Client) GetConnectionType() string {
-	defer c.Unlock()
-	c.Lock()
-	return c.connectionType
 }
 
 func (c *Client) SetConnectionType(ctype string) {
@@ -96,8 +96,8 @@ func (c *Client) SetConnectionType(ctype string) {
 }
 
 func (c *Client) GetVersion() int {
-	defer c.Unlock()
-	c.Lock()
+	defer c.RUnlock()
+	c.RLock()
 	return c.version
 }
 
@@ -241,12 +241,12 @@ func (c *Client) Send(b []byte) {
 			c.Close()
 		}
 	}()
-	c.Lock()
+	c.RLock()
 	if c.closed {
-		c.Unlock()
+		c.RUnlock()
 		return
 	}
-	c.Unlock()
+	c.RUnlock()
 	if len(b) == 0 {
 		return
 	}
