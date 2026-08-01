@@ -18,6 +18,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 )
 
 // TCP server.
@@ -101,12 +102,17 @@ func (s *Server) accept(listener net.Listener) {
 		}
 		// Ported from the Python server: disable Nagle's algorithm on
 		// client sockets to reduce latency for remote control traffic.
+		// TCP keepalive: the kernel probes silent connections every 60s
+		// and drops the ones whose peer vanished without FIN/RST (laptop
+		// closed, network gone). Without it, a half-dead client stays in
+		// its channel forever: the reader blocks on ReadBytes and nothing
+		// ever writes to the client to trip the write deadline.
 		if tc, ok := conn.(*tls.Conn); ok {
 			if t, ok2 := tc.NetConn().(*net.TCPConn); ok2 {
-				_ = t.SetNoDelay(true)
+				setupTCP(t)
 			}
 		} else if t, ok := conn.(*net.TCPConn); ok {
-			_ = t.SetNoDelay(true)
+			setupTCP(t)
 		}
 		msl.Lock()
 		s.Lock()
@@ -124,6 +130,18 @@ func (s *Server) accept(listener net.Listener) {
 		msl.Unlock()
 		go client.listen()
 	}
+}
+
+// setupTCP applies socket-level options shared by every accepted
+// connection: disable Nagle's algorithm (low latency for the remote
+// control traffic) and enable TCP keepalive with a 60s probe period.
+// Keepalive is what eventually detects half-dead peers; combined with
+// the 8s write deadline it guarantees a vanished client is removed
+// from its channel even if nobody ever writes to it.
+func setupTCP(t *net.TCPConn) {
+	_ = t.SetNoDelay(true)
+	_ = t.SetKeepAlive(true)
+	_ = t.SetKeepAlivePeriod(60 * time.Second)
 }
 
 // Creates new tcp server instance.
