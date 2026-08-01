@@ -31,11 +31,12 @@ func gen_key() (string, error) {
 
 // randomDigits returns a string of n uniformly random decimal digits
 // drawn from crypto/rand. Leading zeros are allowed, matching the
-// Python server's key format.
+// Python server's key format. range over an integer is a Go 1.22
+// feature.
 func randomDigits(n int) (string, error) {
 	digits := make([]byte, n)
 	max := big.NewInt(10)
-	for i := range digits {
+	for i := range n {
 		num, err := rand.Int(rand.Reader, max)
 		if err != nil {
 			return "", err
