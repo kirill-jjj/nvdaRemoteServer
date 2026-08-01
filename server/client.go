@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"net"
@@ -13,8 +14,6 @@ import (
 )
 
 var ping_msg = []byte(`{"type":"ping"}`)
-
-const ping_sec int = 120
 
 const write_sec int = 8
 
@@ -110,11 +109,11 @@ func (c *Client) SetVersion(version int) {
 
 // Handle client data.
 func (c *Client) listen() {
+	idstr := strconv.Itoa(c.id)
 	c.Lock()
-	c.t = time.NewTicker(time.Duration(ping_sec) * time.Second)
+	c.t = time.NewTicker(time.Duration(pingTime) * time.Second)
 	reader := bufio.NewReader(c.conn)
 	EndMessage := c.messageTerminator
-	idstr := strconv.Itoa(c.id)
 	c.Unlock()
 	// Send data to client.
 	c.sd = make(chan []byte, 100)
@@ -137,7 +136,7 @@ func (c *Client) listen() {
 				c.Close()
 				return
 			}
-			c.t.Reset(time.Duration(ping_sec) * time.Second)
+			c.t.Reset(time.Duration(pingTime) * time.Second)
 		}
 	}()
 	// Stopping and pinging our client
@@ -164,6 +163,19 @@ func (c *Client) listen() {
 	defer c.s.Done()
 	defer RemoveClient(c)
 	defer c.Close()
+	// Ported from the Python server: a client must negotiate the TLS
+	// connection within the configured timeout, otherwise the connection
+	// is dropped. A timeout of 0 or less disables the limit.
+	if timeoutSecs > 0 {
+		_ = c.conn.SetDeadline(time.Now().Add(time.Duration(timeoutSecs * float64(time.Second))))
+	}
+	if tc, ok := c.conn.(*tls.Conn); ok {
+		if err := tc.Handshake(); err != nil {
+			Log(LOG_DEBUG, "TLS handshake failed for client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+			return
+		}
+	}
+	_ = c.conn.SetDeadline(time.Time{})
 	for {
 		message, err := reader.ReadBytes(EndMessage)
 		if err != nil {
@@ -183,6 +195,11 @@ func (c *Client) listen() {
 		if len(message) == 1 {
 			Log(LOG_DEBUG, "Received empty message from client "+idstr)
 			continue
+		}
+		if maxMsgLen > 0 && len(message)-1 > maxMsgLen {
+			Log(LOG_DEBUG, "Received too much data from client "+idstr+", disconnecting")
+			c.Close()
+			return
 		}
 		message = bytes.TrimRight(message, string(EndMessage))
 		Log(LOG_PROTOCOL, "Data received from client "+idstr+"\r\n"+string(message))

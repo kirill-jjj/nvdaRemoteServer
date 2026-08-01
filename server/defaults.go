@@ -53,6 +53,23 @@ var DEFAULT_LAUNCH bool = true
 
 var DEFAULT_PID_FILE string = ""
 
+// Ported from the Python NVDARemoteServer: options that allow
+// configuring the TLS handshake timeout, the client ping interval,
+// the maximum incoming message length and separate IPv4/IPv6
+// interfaces and ports.
+var (
+	DEFAULT_TIMEOUT_SECS float64 = 5.0
+	DEFAULT_PING_TIME    int     = 120
+	DEFAULT_MAX_MSG_LEN  int     = 0
+)
+
+var (
+	DEFAULT_INTERFACE  string = ""
+	DEFAULT_INTERFACE6 string = ""
+	DEFAULT_PORT       int    = 6837
+	DEFAULT_PORT6      int    = 6837
+)
+
 func init() {
 	dcd, err := os.UserConfigDir()
 	if err != nil {
@@ -121,4 +138,32 @@ func default_gen_conf_dir(p bool) bool {
 
 func default_conf_read(p bool) bool {
 	return (p == DEFAULT_CONF_READ)
+}
+
+func default_timeout_secs(p float64) bool {
+	return (p == DEFAULT_TIMEOUT_SECS)
+}
+
+func default_ping_time(p int) bool {
+	return (p == DEFAULT_PING_TIME)
+}
+
+func default_max_msg_len(p int) bool {
+	return (p == DEFAULT_MAX_MSG_LEN)
+}
+
+func default_interface(p string) bool {
+	return (p == DEFAULT_INTERFACE)
+}
+
+func default_interface6(p string) bool {
+	return (p == DEFAULT_INTERFACE6)
+}
+
+func default_port(p int) bool {
+	return (p == DEFAULT_PORT)
+}
+
+func default_port6(p int) bool {
+	return (p == DEFAULT_PORT6)
 }

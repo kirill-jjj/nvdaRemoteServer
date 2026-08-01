@@ -18,6 +18,13 @@ type Cfg struct {
 	Motd              string      `json:"motd"`
 	MotdAlwaysDisplay bool        `json:"motd_always_display"`
 	SendOrigin        bool        `json:"send_origin"`
+	TimeoutSecs       float64     `json:"timeout"`
+	PingTime          int         `json:"ping_time"`
+	MaxMsgLen         int         `json:"max_message_length"`
+	Interface         string      `json:"interface,omitempty"`
+	Interface6        string      `json:"interface6,omitempty"`
+	Port              int         `json:"port,omitempty"`
+	Port6             int         `json:"port6,omitempty"`
 	ll                []int
 	ls                [][]interface{}
 	le                []bool
@@ -35,6 +42,13 @@ func cfg_default() *Cfg {
 		Motd:              DEFAULT_MOTD,
 		MotdAlwaysDisplay: DEFAULT_MOTD_ALWAYS_DISPLAY,
 		SendOrigin:        DEFAULT_SEND_ORIGIN,
+		TimeoutSecs:       DEFAULT_TIMEOUT_SECS,
+		PingTime:          DEFAULT_PING_TIME,
+		MaxMsgLen:         DEFAULT_MAX_MSG_LEN,
+		Interface:         DEFAULT_INTERFACE,
+		Interface6:        DEFAULT_INTERFACE6,
+		Port:              DEFAULT_PORT,
+		Port6:             DEFAULT_PORT6,
 		ll:                make([]int, 0),
 		ls:                make([][]interface{}, 0),
 		le:                make([]bool, 0),
@@ -67,6 +81,27 @@ func (c *Cfg) IsDefault() bool {
 		return false
 	}
 	if !default_send_origin(c.SendOrigin) {
+		return false
+	}
+	if !default_timeout_secs(c.TimeoutSecs) {
+		return false
+	}
+	if !default_ping_time(c.PingTime) {
+		return false
+	}
+	if !default_max_msg_len(c.MaxMsgLen) {
+		return false
+	}
+	if !default_interface(c.Interface) {
+		return false
+	}
+	if !default_interface6(c.Interface6) {
+		return false
+	}
+	if !default_port(c.Port) {
+		return false
+	}
+	if !default_port6(c.Port6) {
 		return false
 	}
 	return true
@@ -231,6 +266,13 @@ func (c *Cfg) CmdGet() {
 	c.Motd = motd
 	c.MotdAlwaysDisplay = motdAlwaysDisplay
 	c.SendOrigin = sendOrigin
+	c.TimeoutSecs = timeoutSecs
+	c.PingTime = pingTime
+	c.MaxMsgLen = maxMsgLen
+	c.Interface = iface
+	c.Interface6 = iface6
+	c.Port = port
+	c.Port6 = port6
 }
 
 func (c *Cfg) CmdSet() {
@@ -260,6 +302,27 @@ func (c *Cfg) CmdSet() {
 	}
 	if !default_send_origin(c.SendOrigin) && default_send_origin(sendOrigin) {
 		sendOrigin = c.SendOrigin
+	}
+	if !default_timeout_secs(c.TimeoutSecs) && default_timeout_secs(timeoutSecs) {
+		timeoutSecs = c.TimeoutSecs
+	}
+	if !default_ping_time(c.PingTime) && default_ping_time(pingTime) {
+		pingTime = c.PingTime
+	}
+	if !default_max_msg_len(c.MaxMsgLen) && default_max_msg_len(maxMsgLen) {
+		maxMsgLen = c.MaxMsgLen
+	}
+	if !default_interface(c.Interface) && default_interface(iface) {
+		iface = c.Interface
+	}
+	if !default_interface6(c.Interface6) && default_interface6(iface6) {
+		iface6 = c.Interface6
+	}
+	if !default_port(c.Port) && default_port(port) {
+		port = c.Port
+	}
+	if !default_port6(c.Port6) && default_port6(port6) {
+		port6 = c.Port6
 	}
 }
 

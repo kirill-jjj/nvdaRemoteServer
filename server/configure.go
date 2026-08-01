@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"net"
 	"os"
 	"strconv"
 )
@@ -34,6 +35,20 @@ var motd string
 var motdAlwaysDisplay bool
 
 var sendOrigin bool
+
+var timeoutSecs float64
+
+var pingTime int
+
+var maxMsgLen int
+
+var iface string
+
+var iface6 string
+
+var port int
+
+var port6 int
 
 var createDir bool
 
@@ -78,6 +93,20 @@ func Configure() error {
 
 	flag.BoolVar(&sendOrigin, "send-origin", DEFAULT_SEND_ORIGIN, "Send an origin message from every message received by a client.")
 
+	flag.Float64Var(&timeoutSecs, "timeout", DEFAULT_TIMEOUT_SECS, "Maximum time, in seconds, a client can be connected without negotiating a TLS connection before an exception is raised. Values below 1.0 are reset to the default.")
+
+	flag.IntVar(&pingTime, "ping-time", DEFAULT_PING_TIME, "Interval, in seconds, at which the server pings all connected clients. Values below 30 are reset to the default.")
+
+	flag.IntVar(&maxMsgLen, "max-message-length", DEFAULT_MAX_MSG_LEN, "Maximum allowed length, in characters, of incoming client messages. 0 means no limit. Clients sending longer messages are disconnected.")
+
+	flag.StringVar(&iface, "interface", DEFAULT_INTERFACE, "IPv4 interface the server will listen on. This does not affect IPv6 interfaces. An empty value means all IPv4 interfaces.")
+
+	flag.StringVar(&iface6, "interface6", DEFAULT_INTERFACE6, "IPv6 interface the server will listen on. This does not affect IPv4 interfaces. An empty value means all IPv6 interfaces.")
+
+	flag.IntVar(&port, "port", DEFAULT_PORT, "TCP port the server will listen on for IPv4 connections. The port must be between 1 and 65535.")
+
+	flag.IntVar(&port6, "port6", DEFAULT_PORT6, "TCP port the server will listen on for IPv6 connections. By default, uses the value specified in --port. The port must be between 1 and 65535.")
+
 	flag.BoolVar(&Launch, "launch", DEFAULT_LAUNCH, "Launch the server.")
 
 	flag.Parse()
@@ -93,6 +122,53 @@ func Configure() error {
 	log_init(logfile)
 
 	Log(LOG_INFO, "Initializing configuration.")
+
+	if timeoutSecs < 1.0 {
+		timeoutSecs = DEFAULT_TIMEOUT_SECS
+		Log(LOG_INFO, "Timeout is less than 1.0 seconds, resetting to "+strconv.FormatFloat(DEFAULT_TIMEOUT_SECS, 'f', -1, 64))
+	}
+
+	if pingTime < 30 {
+		pingTime = DEFAULT_PING_TIME
+		Log(LOG_INFO, "Ping time is less than 30 seconds, resetting to "+strconv.Itoa(DEFAULT_PING_TIME))
+	}
+
+	if port < 1 || port > 65535 {
+		port = DEFAULT_PORT
+		Log(LOG_INFO, "Invalid port value, resetting to "+strconv.Itoa(DEFAULT_PORT))
+	}
+	if port6 < 1 || port6 > 65535 {
+		port6 = port
+		Log(LOG_INFO, "Invalid port6 value, resetting to "+strconv.Itoa(port))
+	}
+
+	// If no -address has been specified, build the listen addresses from
+	// the -interface/-interface6 and -port/-port6 options, mirroring the
+	// Python server. -address always takes priority.
+	if default_addresses(addresses) && (!default_interface(iface) || !default_interface6(iface6) || !default_port(port) || !default_port6(port6)) {
+		addresses = make(AddressList, 0, 2)
+		if !default_interface(iface) || !default_port(port) {
+			addr := ""
+			if iface != "" {
+				addr = iface
+			}
+			addr = net.JoinHostPort(addr, strconv.Itoa(port))
+			addresses = append(addresses, addr)
+		}
+		if !default_interface6(iface6) || !default_port6(port6) {
+			addr := ""
+			if iface6 != "" {
+				addr = iface6
+			}
+			addr = net.JoinHostPort(addr, strconv.Itoa(port6))
+			addresses = append(addresses, addr)
+		}
+		if len(addresses) == 0 {
+			addresses = make(AddressList, 1)
+			addresses[0] = DEFAULT_ADDRESS
+		}
+	}
+
 	c.LogWrite()
 
 	if c.panicString != "" {

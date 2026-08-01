@@ -134,7 +134,7 @@ The included certificate file is a single file that contains an automatically ge
 # Usage
 
 ```console
-$ nvdaRemoteServer [-pid-file /path/to/pid/file] [-conf-file /path/to/configuration/file] [-conf-read=true] [-gen-conf-file /path/to/generated/configuration/file] [-gen-conf-dir=false] [-create=false] [-address :6837] [-cert-file /path/to/ssl/certificate] [-key-file /path/to/ssl/key] [-gen-cert-file /path/to/created/cert/file] [-motd "Example message of the day."] [-motd-always-display=false] [-send-origin=true] [-log-level=0] [-log-file /path/to/log/file] [-launch=true]
+$ nvdaRemoteServer [-pid-file /path/to/pid/file] [-conf-file /path/to/configuration/file] [-conf-read=true] [-gen-conf-file /path/to/generated/configuration/file] [-gen-conf-dir=false] [-create=false] [-address :6837] [-interface 0.0.0.0] [-interface6 ::] [-port 6837] [-port6 6837] [-cert-file /path/to/ssl/certificate] [-key-file /path/to/ssl/key] [-gen-cert-file /path/to/created/cert/file] [-motd "Example message of the day."] [-motd-always-display=false] [-send-origin=true] [-timeout 5] [-ping-time 120] [-max-message-length 0] [-log-level=0] [-log-file /path/to/log/file] [-launch=true]
 ```
 
 Please note that the brackets around a parameter indicate that it is optional.
@@ -263,6 +263,35 @@ Force the client to display the message of the day from the server, even if it h
 By default, when the server receives a message from a client, it will send that same message to all clients that need to receive it, but it will add an origin field to that message. This requires that the message be decoded into a value the program can more easily manipulate, an origin message added to it, then encoded back to the value that will be sent to all clients. This could cause a slight performance hit. You can disable this feature by setting it to false, if desired, though you might find some things don't work properly for you if you do so. If you set this to false, the server will warn yu that it may impact the functionality of clients when the origin field is required.
 
 
+#### `-timeout`
+
+Maximum time, in seconds, that a client can be connected without negotiating a TLS connection before the connection is dropped. This mirrors the `--timeout` option of the original Python server. Values below 1.0 are reset to the default of 5.0 seconds.
+
+#### `-ping-time`
+
+Interval, in seconds, at which the server pings all connected clients. This mirrors the `--ping_time` option of the original Python server. Values below 30 are reset to the default of 120 seconds.
+
+#### `-max-message-length`
+
+Maximum allowed length, in characters, of incoming client messages. Clients sending longer messages are disconnected. 0 means no limit, which is the default. This mirrors the `--allowedMessageLength` option of the original Python server.
+
+#### `-interface`
+
+IPv4 interface the server will listen on. This does not affect IPv6 interfaces. An empty value (the default) means all IPv4 interfaces. This mirrors the `--interface` option of the original Python server. When this option or `-port` is used, the server builds the corresponding listen address automatically; the `-address` parameter always takes priority.
+
+#### `-interface6`
+
+IPv6 interface the server will listen on. This does not affect IPv4 interfaces. An empty value (the default) means all IPv6 interfaces. This mirrors the `--interface6` option of the original Python server.
+
+#### `-port`
+
+TCP port the server will listen on for IPv4 connections. The port must be between 1 and 65535. This mirrors the `--port` option of the original Python server.
+
+#### `-port6`
+
+TCP port the server will listen on for IPv6 connections. By default, uses the value specified in `-port`. The port must be between 1 and 65535. This mirrors the `--port6` option of the original Python server.
+
+
 #### `-log-file`
 
 Choose a file for the program to log its data. Any logged information will always be sent to the console, but in addition to this, a log file can also be used. By default, logged data is only sent to the console.
@@ -313,6 +342,32 @@ Print the build information, then shut down immediately. Example:
 $ nvdaRemoteServer buildinfo
 This application was compiled with go1.20.1. It was compiled for the amd64 architecture and the linux operating system.
 ```
+
+### Daemon commands: `start`, `stop`, `restart`, `kill`, `status`
+
+On Linux and other Unix-like systems, the server can be run as a background daemon, mirroring the commands of the original Python server. The daemon uses a PID file to track the running instance; by default this is `/tmp/nvdaRemoteServer.pid`, and can be changed with the `-pid-file` parameter, which must be passed after the command.
+
+```console
+$ nvdaRemoteServer start -port 6837
+Server started with pid 12345.
+
+$ nvdaRemoteServer status
+Server is running with pid 12345.
+
+$ nvdaRemoteServer restart
+Stopping server with pid 12345...
+Server started with pid 12346.
+
+$ nvdaRemoteServer stop
+Stopping server with pid 12346...
+Server stopped.
+
+$ nvdaRemoteServer kill
+Killing server with pid 12346...
+Server killed.
+```
+
+`stop` sends a SIGTERM and waits for the server to shut down gracefully. `kill` sends a SIGKILL and should only be used if the server is frozen. All arguments after the command are passed to the server itself. These commands are not supported on Windows; run the server directly there.
 
 
 # Extra Features

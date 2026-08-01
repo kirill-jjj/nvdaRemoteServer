@@ -99,6 +99,15 @@ func (s *Server) accept(listener net.Listener) {
 			s.Stop()
 			break
 		}
+		// Ported from the Python server: disable Nagle's algorithm on
+		// client sockets to reduce latency for remote control traffic.
+		if tc, ok := conn.(*tls.Conn); ok {
+			if t, ok2 := tc.NetConn().(*net.TCPConn); ok2 {
+				_ = t.SetNoDelay(true)
+			}
+		} else if t, ok := conn.(*net.TCPConn); ok {
+			_ = t.SetNoDelay(true)
+		}
 		msl.Lock()
 		s.Lock()
 		client := &Client{

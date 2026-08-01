@@ -1,4 +1,4 @@
-module github.com/tech10/nvdaRemoteServer
+module github.com/kirill-jjj/nvdaRemoteServer
 
 go 1.20
 
