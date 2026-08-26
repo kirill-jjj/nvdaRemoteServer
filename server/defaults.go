@@ -73,18 +73,6 @@ func init() {
 	}
 }
 
-func default_pid_file(p string) bool {
-	return (p == DEFAULT_PID_FILE)
-}
-
-func default_log_file(p string) bool {
-	return (p == DEFAULT_LOG_FILE)
-}
-
-func default_log_level(p int) bool {
-	return (p == DEFAULT_LOG_LEVEL)
-}
-
 func default_cert_file(p string) bool {
 	return (p == DEFAULT_CERT_FILE)
 }
@@ -99,32 +87,4 @@ func default_motd(p string) bool {
 
 func default_motd_always_display(p bool) bool {
 	return (p == DEFAULT_MOTD_ALWAYS_DISPLAY)
-}
-
-func default_timeout_secs(p float64) bool {
-	return (p == DEFAULT_TIMEOUT_SECS)
-}
-
-func default_ping_time(p int) bool {
-	return (p == DEFAULT_PING_TIME)
-}
-
-func default_max_msg_len(p int) bool {
-	return (p == DEFAULT_MAX_MSG_LEN)
-}
-
-func default_interface(p string) bool {
-	return (p == DEFAULT_INTERFACE)
-}
-
-func default_interface6(p string) bool {
-	return (p == DEFAULT_INTERFACE6)
-}
-
-func default_port(p int) bool {
-	return (p == DEFAULT_PORT)
-}
-
-func default_port6(p int) bool {
-	return (p == DEFAULT_PORT6)
 }

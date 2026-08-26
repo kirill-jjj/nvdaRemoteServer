@@ -41,27 +41,38 @@ func conf_read_python(path string) (map[string]string, error) {
 // the configuration file. Invalid values for a given option are
 // silently ignored (the previous value is kept), also like Python.
 func conf_apply(opts map[string]string, cliSet map[string]bool) {
-	if v, ok := opts["interface"]; ok && !cliSet["interface"] {
-		iface = v
+	applyStrings(opts, cliSet)
+	applyNumbers(opts, cliSet)
+	applyFloats(opts, cliSet)
+}
+
+// applyStringOpt copies an option into a global string variable unless
+// the same option was set on the command line.
+func applyStringOpt(opts map[string]string, cliSet map[string]bool, name string, target *string) {
+	if v, ok := opts[name]; ok && !cliSet[name] {
+		*target = v
 	}
-	if v, ok := opts["interface6"]; ok && !cliSet["interface6"] {
-		iface6 = v
+}
+
+// applyIntOpt copies an option into a global int variable unless the
+// same option was set on the command line. Invalid integers are
+// silently ignored, mirroring the Python server.
+func applyIntOpt(opts map[string]string, cliSet map[string]bool, name string, target *int) {
+	if v, ok := opts[name]; ok && !cliSet[name] {
+		if n, err := strconv.Atoi(v); err == nil {
+			*target = n
+		}
 	}
-	if v, ok := opts["logfile"]; ok && !cliSet["logfile"] {
-		logfile = v
-	}
-	if v, ok := opts["pidfile"]; ok && !cliSet["pidfile"] {
-		pidfile = v
-	}
-	if v, ok := opts["keyfile"]; ok && !cliSet["keyfile"] {
-		key = v
-	}
-	if v, ok := opts["certfile"]; ok && !cliSet["certfile"] {
-		cert = v
-	}
-	if v, ok := opts["motd"]; ok && !cliSet["motd"] {
-		motd = v
-	}
+}
+
+func applyStrings(opts map[string]string, cliSet map[string]bool) {
+	applyStringOpt(opts, cliSet, "interface", &iface)
+	applyStringOpt(opts, cliSet, "interface6", &iface6)
+	applyStringOpt(opts, cliSet, "logfile", &logfile)
+	applyStringOpt(opts, cliSet, "pidfile", &pidfile)
+	applyStringOpt(opts, cliSet, "keyfile", &key)
+	applyStringOpt(opts, cliSet, "certfile", &cert)
+	applyStringOpt(opts, cliSet, "motd", &motd)
 	if v, ok := opts["motd_force_display"]; ok && !cliSet["motd_force_display"] {
 		if n, err := strconv.Atoi(v); err == nil {
 			motdAlwaysDisplay = n != 0
@@ -71,34 +82,17 @@ func conf_apply(opts map[string]string, cliSet map[string]bool) {
 	// no tracebacks, so the option is accepted and ignored.
 	// (The value is not validated here: conf_apply runs before the
 	// logger is initialized, and the Python server ignores bad values.)
-	if _, ok := opts["includeTracebacks"]; ok && !cliSet["includeTracebacks"] {
-		// no-op, accepted for Python configuration compatibility
-	}
-	if v, ok := opts["port"]; ok && !cliSet["port"] {
-		if n, err := strconv.Atoi(v); err == nil {
-			port = n
-		}
-	}
-	if v, ok := opts["port6"]; ok && !cliSet["port6"] {
-		if n, err := strconv.Atoi(v); err == nil {
-			port6 = n
-		}
-	}
-	if v, ok := opts["loglevel"]; ok && !cliSet["loglevel"] {
-		if n, err := strconv.Atoi(v); err == nil {
-			loglevel = n
-		}
-	}
-	if v, ok := opts["allowedMessageLength"]; ok && !cliSet["allowedMessageLength"] {
-		if n, err := strconv.Atoi(v); err == nil {
-			maxMsgLen = n
-		}
-	}
-	if v, ok := opts["ping_time"]; ok && !cliSet["ping_time"] {
-		if n, err := strconv.Atoi(v); err == nil {
-			pingTime = n
-		}
-	}
+}
+
+func applyNumbers(opts map[string]string, cliSet map[string]bool) {
+	applyIntOpt(opts, cliSet, "port", &port)
+	applyIntOpt(opts, cliSet, "port6", &port6)
+	applyIntOpt(opts, cliSet, "loglevel", &loglevel)
+	applyIntOpt(opts, cliSet, "allowedMessageLength", &maxMsgLen)
+	applyIntOpt(opts, cliSet, "ping_time", &pingTime)
+}
+
+func applyFloats(opts map[string]string, cliSet map[string]bool) {
 	if v, ok := opts["timeout"]; ok && !cliSet["timeout"] {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			timeoutSecs = f

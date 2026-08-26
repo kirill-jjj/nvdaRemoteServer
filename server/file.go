@@ -65,8 +65,3 @@ func fullPath(old_path string) string {
 	}
 	return cleanPath(strings.TrimSuffix(e_path, PS))
 }
-
-func file_read(file string) ([]byte, error) {
-	file = fullPath(file)
-	return os.ReadFile(file)
-}

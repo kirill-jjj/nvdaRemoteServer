@@ -35,9 +35,9 @@ func gen_key() (string, error) {
 // feature.
 func randomDigits(n int) (string, error) {
 	digits := make([]byte, n)
-	max := big.NewInt(10)
+	maxDigit := big.NewInt(10)
 	for i := range n {
-		num, err := rand.Int(rand.Reader, max)
+		num, err := rand.Int(rand.Reader, maxDigit)
 		if err != nil {
 			return "", err
 		}
