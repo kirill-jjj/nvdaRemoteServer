@@ -72,6 +72,9 @@ func applyStrings(opts map[string]string, cliSet map[string]bool) {
 	applyStringOpt(opts, cliSet, "pidfile", &pidfile)
 	applyStringOpt(opts, cliSet, "keyfile", &key)
 	applyStringOpt(opts, cliSet, "certfile", &cert)
+	applyStringOpt(opts, cliSet, "domain", &domain)
+	applyStringOpt(opts, cliSet, "acme_email", &acmeEmail)
+	applyStringOpt(opts, cliSet, "acme_ca", &acmeCA)
 	applyStringOpt(opts, cliSet, "motd", &motd)
 	if v, ok := opts["motd_force_display"]; ok && !cliSet["motd_force_display"] {
 		if n, err := strconv.Atoi(v); err == nil {

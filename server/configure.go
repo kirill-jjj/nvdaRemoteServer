@@ -6,6 +6,10 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
+	"context"
+
+	"github.com/caddyserver/certmagic"
 )
 
 var confFile string
@@ -176,22 +180,50 @@ func Configure() error {
 		generate = true
 	}
 
-	if generate {
-		Log(LOG_DEBUG, "Attempting to generate self-signed SSL certificate.")
-		config, err = gen_cert()
+	// 1. Приоритет: Автоматический сертификат CertMagic через домен
+	if domain != "" {
+		domains := strings.Split(domain, ",")
+		for i := range domains {
+			domains[i] = strings.TrimSpace(domains[i])
+		}
+
+		Log(LOG_INFO, "Configuring CertMagic ACME for domain(s): "+strings.Join(domains, ", "))
+
+		if acmeEmail != "" {
+			certmagic.DefaultACME.Email = acmeEmail
+		}
+		certmagic.DefaultACME.Agreed = true
+		if acmeCA != "" {
+			certmagic.DefaultACME.CA = acmeCA
+		}
+
+		magic := certmagic.NewDefault()
+		err = magic.ManageSync(context.Background(), domains)
 		if err != nil {
-			Log_error("Unable to generate self-signed certificate.\r\n" + err.Error() + "\r\nUnable to start server.")
+			Log_error("CertMagic error managing domain certificates:\r\n" + err.Error())
 			return err
 		}
-		Log(LOG_DEBUG, "SSL certificate generated.")
+
+		config = magic.TLSConfig()
+		Log(LOG_INFO, "CertMagic successfully obtained/loaded TLS certificate.")
 	} else {
-		cert, cerr := tls.LoadX509KeyPair(cert, key)
-		if cerr != nil {
-			Log_error("Error loading certificate and key files.\r\n" + cerr.Error() + "\r\nUnable to start server.")
-			return cerr
-		}
-		config = &tls.Config{
-			Certificates: []tls.Certificate{cert},
+		if generate {
+			Log(LOG_DEBUG, "Attempting to generate self-signed SSL certificate.")
+			config, err = gen_cert()
+			if err != nil {
+				Log_error("Unable to generate self-signed certificate.\r\n" + err.Error() + "\r\nUnable to start server.")
+				return err
+			}
+			Log(LOG_DEBUG, "SSL certificate generated.")
+		} else {
+			certPair, cerr := tls.LoadX509KeyPair(cert, key)
+			if cerr != nil {
+				Log_error("Error loading certificate and key files.\r\n" + cerr.Error() + "\r\nUnable to start server.")
+				return cerr
+			}
+			config = &tls.Config{
+				Certificates: []tls.Certificate{certPair},
+			}
 		}
 	}
 

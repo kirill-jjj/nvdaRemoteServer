@@ -18,6 +18,10 @@ var (
 	DEFAULT_KEY_FILE  string = ""
 )
 
+var DEFAULT_DOMAIN     string = ""
+var DEFAULT_ACME_EMAIL string = ""
+var DEFAULT_ACME_CA    string = ""
+
 var DEFAULT_LOG_FILE string = ""
 
 // The Python server defaults to log level 2.
