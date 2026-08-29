@@ -40,6 +40,10 @@ var port int
 
 var port6 int
 
+var domain string
+var acmeEmail string
+var acmeCA string
+
 var includeTracebacks bool
 
 var Servers []*Server
@@ -65,6 +69,9 @@ func Configure() error {
 	flag.StringVar(&confFile, "configfile", DEFAULT_CONF_FILE, "Path to a configuration file in the Python NVDARemoteServer format (option=value pairs). If the file does not exist, or can't be read, default or command line values are used.")
 	flag.StringVar(&cert, "certfile", DEFAULT_CERT_FILE, "SSL certificate file to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
 	flag.StringVar(&key, "keyfile", DEFAULT_KEY_FILE, "SSL key to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
+	flag.StringVar(&domain, "domain", DEFAULT_DOMAIN, "Domain name for automatic TLS certificate management via Let's Encrypt / CertMagic.")
+	flag.StringVar(&acmeEmail, "acme_email", DEFAULT_ACME_EMAIL, "Email address for ACME registration.")
+	flag.StringVar(&acmeCA, "acme_ca", DEFAULT_ACME_CA, "Custom ACME CA URL (optional).")
 	flag.StringVar(&pidfile, "pidfile", DEFAULT_PID_FILE, "Create a PID file when the server has successfully started.")
 	flag.IntVar(&loglevel, "loglevel", DEFAULT_LOG_LEVEL, "Choose what log level you wish to use. Any value below -1 will be ignored.")
 	flag.StringVar(&logfile, "logfile", DEFAULT_LOG_FILE, "Choose what log file you wish to use in addition to logging output to the console. If the file can't be created or open for writing, the program will fall back to console logging only.")
