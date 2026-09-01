@@ -2,7 +2,6 @@ package server
 
 import (
 	"runtime"
-	"strconv"
 	"sync"
 	"sync/atomic"
 )
@@ -33,7 +32,7 @@ func AddClient(c *Client) {
 		clients = make(map[*Client]struct{})
 	}
 	clients[c] = struct{}{}
-	Log(LOG_CONNECTION, "Client "+strconv.Itoa(id)+" has connected from "+c.GetIP())
+	Log(LOG_CONNECTION, "client connected", "id", id, "ip", c.GetIP())
 }
 
 func FindClient(c *Client) bool {
@@ -55,14 +54,14 @@ func RemoveClient(c *Client) {
 	defer mu.Unlock()
 	id := c.GetID()
 	if _, exists := clients[c]; !exists {
-		Log(LOG_DEBUG, "Client "+strconv.Itoa(id)+" is already disconnected.")
+		Log(LOG_DEBUG, "client already disconnected", "id", id)
 		return
 	}
-	Log(LOG_CONNECTION, "Client "+strconv.Itoa(id)+" has disconnected.")
+	Log(LOG_CONNECTION, "client disconnected", "id", id)
 	delete(clients, c)
 	if len(clients) == 0 {
 		clients = nil
-		Log(LOG_DEBUG, "There are no clients connected to the server.")
+		Log(LOG_DEBUG, "no clients connected to server")
 	}
 }
 
@@ -72,16 +71,11 @@ func AddChannel(name, password string, locked bool, c *Client) {
 	if channels == nil {
 		channels = make(map[string]*ClientChannel)
 	}
-	logstr := "Channel " + name + " has been created."
 	if locked {
-		logstr += " This is a locked channel. "
-		if password != "" {
-			logstr += "Clients can control a computer"
-		} else {
-			logstr += "No computers can be controlled on this channel."
-		}
+		Log(LOG_CHANNEL, "channel created (locked)", "name", name, "has_password", password != "")
+	} else {
+		Log(LOG_CHANNEL, "channel created", "name", name)
 	}
-	Log(LOG_CHANNEL, logstr)
 	cc := NewClientChannel(name, password, locked, c)
 	channels[name] = cc
 }
@@ -106,17 +100,17 @@ func RemoveChannel(name string) {
 		return
 	}
 	delete(channels, name)
-	Log(LOG_CHANNEL, "Channel "+name+" has been removed.")
+	Log(LOG_CHANNEL, "channel removed", "name", name)
 	if len(channels) == 0 {
 		channels = nil
-		Log(LOG_DEBUG, "There are no channels on the server.")
+		Log(LOG_DEBUG, "no channels on server")
 	}
 }
 
 func MessageReceived(c *Client, pmsg []byte) {
 	id := c.GetID()
 	if !FindClient(c) {
-		Log_error("A client object was not found from the connection receiving a message, number " + strconv.Itoa(id) + ". Unexpected behavior encountered. Closing connection.")
+		Log_error("client not found in connection map", "id", id)
 		runtime.Goexit()
 	}
 	cc := c.GetChannel()
@@ -125,7 +119,7 @@ func MessageReceived(c *Client, pmsg []byte) {
 		// server, which has no option to disable it.
 		pmsg, err := JsonAdd(pmsg, "origin", id)
 		if err != nil {
-			Log(LOG_DEBUG, "Error adding origin to message from client "+strconv.Itoa(id)+".\r\n"+err.Error()+"\r\nSending to all clients without origin field.")
+			Log(LOG_DEBUG, "error adding origin to message", "id", id, "error", err)
 			// Non-JSON data (raw NVDA remote protocol messages)
 			// are relayed to every client in the channel, mirroring
 			// the Python server's send_data_to_others behavior.
@@ -142,7 +136,7 @@ func MessageReceived(c *Client, pmsg []byte) {
 	// finds nobody with the same password and returns).
 	decode, err := Decode(pmsg)
 	if err != nil {
-		Log(LOG_DEBUG, "Unable to parse message from client "+strconv.Itoa(id)+", ignoring.\r\n"+err.Error())
+		Log(LOG_DEBUG, "unable to parse message from client, ignoring", "id", id, "error", err)
 		return
 	}
 	cmd_exec(c, &decode)

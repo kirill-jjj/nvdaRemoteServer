@@ -2,7 +2,6 @@ package server
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 )
@@ -149,16 +148,12 @@ func (c *ClientChannel) Add(client *Client, password string) {
 		c.sendToClient(client, mdb)
 	}
 
-	logstr := "Client " + strconv.Itoa(id) + " has joined channel " + c.name
-	if connection != "" {
-		logstr += " as a " + connection + ". "
-		if auth {
-			logstr += "This client is authorized to control other computers"
-		} else {
-			logstr += "This client is not authorized to control other computers"
-		}
-	}
-	Log(LOG_CHANNEL, logstr+".")
+	Log(LOG_CHANNEL, "client joined channel",
+		"id", id,
+		"channel", c.name,
+		"connection_type", connection,
+		"authorized", auth,
+	)
 }
 
 func (c *ClientChannel) Remove(client *Client) {
@@ -186,7 +181,10 @@ func (c *ClientChannel) Remove(client *Client) {
 		},
 	}), client)
 
-	Log(LOG_CHANNEL, "Client "+strconv.Itoa(id)+" has left channel "+c.name)
+	Log(LOG_CHANNEL, "client left channel",
+		"id", id,
+		"channel", c.name,
+	)
 
 	// Check if channel is empty after removal. Previously this was
 	// split into EndIfEmpty() + Quit() with an unlock/relock in
@@ -301,7 +299,7 @@ func (c *ClientChannel) sendToClient(client *Client, data Data) {
 func (c *ClientChannel) mustEncode(data Data) []byte {
 	enc, err := Encode(data)
 	if err != nil {
-		Log(LOG_DEBUG, "Error encoding JSON for channel "+c.name+": "+err.Error())
+		Log(LOG_DEBUG, "error encoding JSON", "channel", c.name, "error", err)
 		return nil
 	}
 	return enc

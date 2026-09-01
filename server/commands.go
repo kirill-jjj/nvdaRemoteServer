@@ -1,9 +1,6 @@
 package server
 
-import (
-	"strconv"
-	"time"
-)
+import "time"
 
 var command = make(map[string]func(*Client, *Data))
 
@@ -22,11 +19,11 @@ func cmd_add(cmd string, cfunc func(*Client, *Data)) {
 func cmd_exec(c *Client, db *Data) {
 	cmd := db.Type
 	if cmd == "" {
-		Log(LOG_DEBUG, "Received message without a type from client "+strconv.Itoa(c.GetID())+", ignoring")
+		Log(LOG_DEBUG, "received message without type, ignoring", "id", c.GetID())
 		return
 	}
 	if !cmd_exists(cmd) {
-		Log(LOG_DEBUG, "Unknown command "+cmd+" from client "+strconv.Itoa(c.GetID())+", ignoring")
+		Log(LOG_DEBUG, "unknown command", "command", cmd, "id", c.GetID())
 		return
 	}
 	command[cmd](c, db)
@@ -39,7 +36,7 @@ func sendError(c *Client, errType string) {
 		Error: errType,
 	})
 	if encerr != nil {
-		Log(LOG_DEBUG, "JSON encoding error for client "+strconv.Itoa(c.GetID())+": "+encerr.Error())
+		Log(LOG_DEBUG, "JSON encoding error", "id", c.GetID(), "error", encerr)
 		return
 	}
 	c.Send(enc)
@@ -49,7 +46,7 @@ func sendError(c *Client, errType string) {
 func sendJSON(c *Client, data Data) bool {
 	enc, encerr := Encode(data)
 	if encerr != nil {
-		Log(LOG_DEBUG, "JSON encoding error for client "+strconv.Itoa(c.GetID())+": "+encerr.Error())
+		Log(LOG_DEBUG, "JSON encoding error", "id", c.GetID(), "error", encerr)
 		return false
 	}
 	c.Send(enc)
@@ -85,17 +82,17 @@ func init() {
 	cmd_add("protocol_version", func(c *Client, db *Data) {
 		// Python: version = obj.get('version'); if not version: return
 		if db.Version <= 0 {
-			Log(LOG_DEBUG, "Client "+strconv.Itoa(c.GetID())+" has tried to register an invalid version number, ignoring")
+			Log(LOG_DEBUG, "invalid version number", "id", c.GetID(), "version", db.Version)
 			return
 		}
 		c.SetVersion(db.Version)
-		Log(LOG_DEBUG, "Client "+strconv.Itoa(c.GetID())+" has set protocol version "+strconv.Itoa(db.Version)+".")
+		Log(LOG_DEBUG, "protocol version set", "id", c.GetID(), "version", db.Version)
 	})
 
 	cmd_add("generate_key", func(c *Client, db *Data) {
 		key, err := gen_key()
 		if err != nil {
-			Log_error("Unable to generate a key for client " + strconv.Itoa(c.GetID()) + "\r\n" + err.Error() + "\r\nClosing connection.")
+			Log_error("unable to generate key", "id", c.GetID(), "error", err)
 			c.Close()
 			return
 		}
@@ -103,7 +100,7 @@ func init() {
 			Type: "generate_key",
 			Key:  key,
 		})
-		Log(LOG_DEBUG, "Client "+strconv.Itoa(c.GetID())+" has generated a key: "+key)
+		Log(LOG_DEBUG, "key generated", "id", c.GetID(), "key", key)
 		time.Sleep(time.Second)
 		c.Close()
 	})

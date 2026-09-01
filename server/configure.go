@@ -75,7 +75,7 @@ func Configure() error {
 
 	applyConfigFile()
 	log_init(logfile)
-	Log(LOG_INFO, "Initializing configuration.")
+	Log(LOG_INFO, "initializing configuration")
 
 	validateSettings()
 	handleMotd()
@@ -89,7 +89,7 @@ func Configure() error {
 	Servers = make([]*Server, len(addrs))
 	for i, addr := range addrs {
 		Servers[i] = NewWithTLSConfig(addr, config)
-		Log(LOG_DEBUG, "Starting server listening on address "+addr)
+		Log(LOG_DEBUG, "starting server on address", "address", addr)
 	}
 
 	return nil
@@ -139,27 +139,27 @@ func applyConfigFile() {
 func validateSettings() {
 	if timeoutSecs < 1.0 {
 		timeoutSecs = DEFAULT_TIMEOUT_SECS
-		Log(LOG_INFO, "Timeout is less than 1.0 seconds, resetting to "+strconv.FormatFloat(DEFAULT_TIMEOUT_SECS, 'f', -1, 64))
+		Log(LOG_INFO, "timeout reset to default", "value", DEFAULT_TIMEOUT_SECS)
 	}
 	if pingTime < 30 {
 		pingTime = DEFAULT_PING_TIME
-		Log(LOG_INFO, "Ping time is less than 30 seconds, resetting to "+strconv.Itoa(DEFAULT_PING_TIME))
+		Log(LOG_INFO, "ping_time reset to default", "value", DEFAULT_PING_TIME)
 	}
 	if port < 1 || port > 65535 {
 		port = DEFAULT_PORT
-		Log(LOG_INFO, "Invalid port value, resetting to "+strconv.Itoa(DEFAULT_PORT))
+		Log(LOG_INFO, "port reset to default", "value", DEFAULT_PORT)
 	}
 	if port6 < 1 || port6 > 65535 {
 		port6 = port
-		Log(LOG_INFO, "Invalid port6 value, resetting to "+strconv.Itoa(port))
+		Log(LOG_INFO, "port6 reset to port value", "value", port)
 	}
 	if loglevel < LOG_SILENT {
 		loglevel = LOG_SILENT
-		Log(LOG_INFO, "Log level is less than silent log value, resetting to "+strconv.Itoa(LOG_SILENT))
+		Log(LOG_INFO, "loglevel reset to silent", "value", LOG_SILENT)
 	}
 	if loglevel > LOG_PROTOCOL {
 		loglevel = LOG_PROTOCOL
-		Log(LOG_INFO, "Log level is greater than protocol log value, resetting to "+strconv.Itoa(LOG_PROTOCOL))
+		Log(LOG_INFO, "loglevel reset to protocol", "value", LOG_PROTOCOL)
 	}
 }
 
@@ -167,7 +167,7 @@ func validateSettings() {
 // including the protocol logging warning.
 func handleMotd() {
 	if loglevel == LOG_PROTOCOL {
-		Log(LOG_INFO, "Protocol logging is enabled. The server message of the day will be set to display always, and if unset, will have a value added to it that will alert all users connecting that protocol logging is enabled.")
+		Log(LOG_INFO, "protocol logging enabled")
 		protocollogmotd := "WARNING!\nAll server information is being logged, including the protocol being used. This server is running in an insecure mode for production."
 		if motd == "" {
 			motd = protocollogmotd
@@ -177,14 +177,10 @@ func handleMotd() {
 		motdAlwaysDisplay = true
 	}
 	if motd != DEFAULT_MOTD {
-		logstr := "The server will display the following message of the day:\r\n" + motd
-		if motdAlwaysDisplay != DEFAULT_MOTD_ALWAYS_DISPLAY {
-			logstr += "\r\nThe server will tell each client to display this message of the day upon each connection."
-		}
-		Log(LOG_DEBUG, logstr)
+		Log(LOG_DEBUG, "MOTD configured", "motd", motd, "force_display", motdAlwaysDisplay)
 	}
 	if motd == DEFAULT_MOTD && motdAlwaysDisplay == DEFAULT_MOTD_ALWAYS_DISPLAY {
-		Log(LOG_INFO, "The server has been told to always display a message of the day, but no message of the day has been set. The -motd_force_display parameter will be reset to false.")
+		Log(LOG_INFO, "MOTD force_display reset to false (no MOTD set)")
 		motdAlwaysDisplay = false
 	}
 }
@@ -194,11 +190,11 @@ func handleMotd() {
 func buildTLSConfig() (*tls.Config, error) {
 	generate := false
 	if cert != DEFAULT_CERT_FILE && !fileExists(cert) {
-		Log(LOG_INFO, "The certificate file at "+cert+" does not exist.")
+		Log(LOG_INFO, "certificate file does not exist", "file", cert)
 		generate = true
 	}
 	if key != DEFAULT_KEY_FILE && !fileExists(key) {
-		Log(LOG_INFO, "The key file at "+key+" does not exist.")
+		Log(LOG_INFO, "key file does not exist", "file", key)
 		generate = true
 	}
 	if cert == DEFAULT_CERT_FILE || key == DEFAULT_KEY_FILE {
@@ -221,7 +217,7 @@ func buildCertMagicConfig() (*tls.Config, error) {
 		domains[i] = strings.TrimSpace(domains[i])
 	}
 
-	Log(LOG_INFO, "Configuring CertMagic ACME for domain(s): "+strings.Join(domains, ", "))
+	Log(LOG_INFO, "configuring CertMagic ACME", "domains", strings.Join(domains, ", "))
 
 	if acmeEmail != "" {
 		certmagic.DefaultACME.Email = acmeEmail
@@ -233,11 +229,11 @@ func buildCertMagicConfig() (*tls.Config, error) {
 
 	magic := certmagic.NewDefault()
 	if err := magic.ManageSync(context.Background(), domains); err != nil {
-		Log_error("CertMagic error managing domain certificates:\r\n" + err.Error())
+		Log_error("CertMagic error", "error", err)
 		return nil, err
 	}
 
-	Log(LOG_INFO, "CertMagic successfully obtained/loaded TLS certificate.")
+	Log(LOG_INFO, "CertMagic certificate obtained")
 	config := magic.TLSConfig()
 	// TLS 1.2 is the minimum: NVDA Remote addon (Python) bundled with
 	// NVDA uses ssl.SSLContext() which defaults to PROTOCOL_TLS. On
@@ -249,13 +245,13 @@ func buildCertMagicConfig() (*tls.Config, error) {
 
 // buildSelfSignedConfig generates a self-signed certificate in memory.
 func buildSelfSignedConfig() (*tls.Config, error) {
-	Log(LOG_DEBUG, "Attempting to generate self-signed SSL certificate.")
+	Log(LOG_DEBUG, "generating self-signed certificate")
 	config, err := gen_cert()
 	if err != nil {
-		Log_error("Unable to generate self-signed certificate.\r\n" + err.Error() + "\r\nUnable to start server.")
+		Log_error("unable to generate self-signed certificate", "error", err)
 		return nil, err
 	}
-	Log(LOG_DEBUG, "SSL certificate generated.")
+	Log(LOG_DEBUG, "self-signed certificate generated")
 	config.MinVersion = tls.VersionTLS12
 	return config, nil
 }
@@ -264,7 +260,7 @@ func buildSelfSignedConfig() (*tls.Config, error) {
 func buildExplicitCertConfig() (*tls.Config, error) {
 	certPair, err := tls.LoadX509KeyPair(cert, key)
 	if err != nil {
-		Log_error("Error loading certificate and key files.\r\n" + err.Error() + "\r\nUnable to start server.")
+		Log_error("error loading certificate files", "error", err)
 		return nil, err
 	}
 	config := &tls.Config{
@@ -296,7 +292,7 @@ func Start() int {
 	for i := range Servers {
 		err = Servers[i].Listen()
 		if err != nil {
-			Log_error("Unable to listen on address " + Servers[i].address + ".\r\n" + err.Error())
+			Log_error("unable to listen on address", "address", Servers[i].address, "error", err)
 			Servers[i] = nil
 			continue
 		}
@@ -307,7 +303,7 @@ func Start() int {
 		return num
 	}
 
-	Log(LOG_DEBUG, "Number of servers started: "+strconv.Itoa(num))
+	Log(LOG_DEBUG, "servers started", "count", num)
 	return num
 }
 

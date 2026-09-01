@@ -30,7 +30,7 @@ func main() {
 	}
 	defer CatchPanic()
 	PidfileSet()
-	Log(LOG_INFO, "Server started. Running under PID "+PID_STR+". Server version "+Version)
+	Log(LOG_INFO, "server started", "pid", PID, "version", Version)
 	wait()
 	if Mctx.Err() != nil {
 		Log(LOG_INFO, "Shutdown signal received, stopping servers.")

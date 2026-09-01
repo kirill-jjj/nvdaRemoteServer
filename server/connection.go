@@ -91,7 +91,7 @@ func (s *Server) accept(listener net.Listener) {
 		// Mctx.Err() is thread-safe (context.Context guarantees safe
 		// concurrent access), so no extra mutex is needed here.
 		if Mctx.Err() == nil {
-			Log(LOG_DEBUG, "The server at "+address+" has received a signal to stop.")
+			Log(LOG_DEBUG, "server received stop signal", "address", address)
 		}
 		listener.Close()
 		s.Done()
@@ -101,7 +101,7 @@ func (s *Server) accept(listener net.Listener) {
 		if err != nil {
 			// Mctx.Err() is thread-safe — no msl needed.
 			if Mctx.Err() == nil {
-				Log(LOG_DEBUG, "Error accepting connections on the server at "+address+"\r\n"+err.Error()+"\r\nStopping server.")
+				Log_error("error accepting connections", "address", address, "error", err)
 			}
 			s.Stop()
 			break

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -110,17 +109,14 @@ func (c *Client) SetVersion(version int) {
 	c.version = version
 }
 
-// logClientError logs a client error with the standard format:
-// "Error <context> to client <id>.\r\n<err>\r\nClosing connection."
-// This replaces the 5 duplicated string concatenation patterns in
-// the writer and listener goroutines.
+// logClientError logs a client error with structured data.
 func (c *Client) logClientError(context string, err error) {
-	Log(LOG_DEBUG, "Error "+context+" to client "+strconv.Itoa(c.id)+".\r\n"+err.Error()+"\r\nClosing connection.")
+	Log(LOG_DEBUG, "client error", "context", context, "id", c.id, "error", err)
 }
 
 // Handle client data.
 func (c *Client) listen() {
-	idstr := strconv.Itoa(c.id)
+	idstr := c.id
 	c.Lock()
 	c.t = time.NewTicker(time.Duration(pingTime) * time.Second)
 	reader := bufio.NewReader(c.conn)
@@ -152,7 +148,7 @@ func (c *Client) listen() {
 					c.Close()
 					return
 				}
-				Log(LOG_PROTOCOL, "Data sent to client "+idstr+"\r\n"+string(b))
+				Log(LOG_PROTOCOL, "data sent to client", "id", idstr, "data", string(b))
 				_ = c.conn.SetWriteDeadline(time.Now().Add(time.Duration(write_sec) * time.Second))
 				if _, err := bw.Write(b); err != nil {
 					c.logClientError("sending message", err)
@@ -232,11 +228,11 @@ func (c *Client) listen() {
 			return
 		}
 		if len(message) == 1 {
-			Log(LOG_DEBUG, "Received empty message from client "+idstr)
+			Log(LOG_DEBUG, "received empty message from client", "id", idstr)
 			continue
 		}
 		if maxMsgLen > 0 && len(message)-1 > maxMsgLen {
-			Log(LOG_DEBUG, "Received too much data from client "+idstr+", disconnecting")
+			Log(LOG_DEBUG, "received too much data from client, disconnecting", "id", idstr)
 			c.Close()
 			return
 		}
@@ -245,7 +241,7 @@ func (c *Client) listen() {
 		// conversion allocates a new string on every call, while a
 		// string literal is a compile-time constant.
 		message = bytes.TrimRight(message, "\n")
-		Log(LOG_PROTOCOL, "Data received from client "+idstr+"\r\n"+string(message))
+		Log(LOG_PROTOCOL, "data received from client", "id", idstr, "data", string(message))
 		MessageReceived(c, message)
 	}
 }
