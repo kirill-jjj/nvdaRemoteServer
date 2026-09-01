@@ -13,12 +13,10 @@ const (
 
 type ClientChannel struct {
 	sync.RWMutex
-	name          string
-	password      string
-	locked        bool
-	ClientsAll    map[int]*Client
-	ClientsMaster map[int]*Client
-	ClientsSlave  map[int]*Client
+	name       string
+	password   string
+	locked     bool
+	ClientsAll map[int]*Client
 }
 
 func (c *ClientChannel) Lmotd(ctype, name, password string) string {
@@ -69,16 +67,6 @@ func (c *ClientChannel) Add(client *Client, password string) {
 	}
 	clients := c.ClientsAll
 	lmotd := c.Lmotd(connection, c.name, password)
-	switch connection {
-	case connTypeMaster:
-		if _, exists := c.ClientsMaster[id]; !exists {
-			c.ClientsMaster[id] = client
-		}
-	case connTypeSlave:
-		if _, exists := c.ClientsSlave[id]; !exists {
-			c.ClientsSlave[id] = client
-		}
-	}
 	if _, exists := c.ClientsAll[id]; exists {
 		return
 	}
@@ -161,12 +149,6 @@ func (c *ClientChannel) Remove(client *Client) {
 	c.Lock()
 	id := client.GetID()
 	connection := client.GetConnectionType()
-	switch connection {
-	case connTypeMaster:
-		delete(c.ClientsMaster, id)
-	case connTypeSlave:
-		delete(c.ClientsSlave, id)
-	}
 	delete(c.ClientsAll, id)
 	client.ClearChannel()
 
@@ -202,14 +184,10 @@ func (c *ClientChannel) quitLocked() {
 		RemoveChannel(c.name)
 		return
 	}
-	for id, client := range c.ClientsAll {
-		delete(c.ClientsMaster, id)
-		delete(c.ClientsSlave, id)
+	for _, client := range c.ClientsAll {
 		client.ClearChannel()
 	}
 	c.ClientsAll = nil
-	c.ClientsMaster = nil
-	c.ClientsSlave = nil
 	RemoveChannel(c.name)
 }
 
@@ -307,12 +285,10 @@ func (c *ClientChannel) mustEncode(data Data) []byte {
 
 func NewClientChannel(name, password string, locked bool, client *Client) *ClientChannel {
 	c := &ClientChannel{
-		name:          name,
-		locked:        locked,
-		password:      password,
-		ClientsAll:    make(map[int]*Client),
-		ClientsMaster: make(map[int]*Client),
-		ClientsSlave:  make(map[int]*Client),
+		name:       name,
+		locked:     locked,
+		password:   password,
+		ClientsAll: make(map[int]*Client),
 	}
 	c.Add(client, password)
 	return c
