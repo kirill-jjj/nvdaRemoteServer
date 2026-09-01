@@ -38,7 +38,6 @@ type Server struct {
 var (
 	Mctx        context.Context
 	StopServers context.CancelFunc
-	msl         sync.Mutex
 )
 
 // init wires OS signals (Ctrl+C, SIGTERM, SIGQUIT) straight into the
@@ -46,8 +45,7 @@ var (
 // server (keyboard interrupt, "kill", or the stop/restart daemon
 // commands sending SIGTERM), Mctx is cancelled automatically and every
 // server and client goroutine that derived its context from Mctx starts
-// shutting down. This replaces the original signals/ package with its
-// manual channel + signal.Notify + signals_init() helper.
+// shutting down.
 func init() {
 	Mctx, StopServers = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 }
@@ -90,22 +88,21 @@ func (s *Server) accept(listener net.Listener) {
 	// Stopping our server.
 	go func() {
 		<-s.ctx.Done()
-		msl.Lock()
+		// Mctx.Err() is thread-safe (context.Context guarantees safe
+		// concurrent access), so no extra mutex is needed here.
 		if Mctx.Err() == nil {
 			Log(LOG_DEBUG, "The server at "+address+" has received a signal to stop.")
 		}
-		msl.Unlock()
 		listener.Close()
 		s.Done()
 	}()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			msl.Lock()
+			// Mctx.Err() is thread-safe — no msl needed.
 			if Mctx.Err() == nil {
 				Log(LOG_DEBUG, "Error accepting connections on the server at "+address+"\r\n"+err.Error()+"\r\nStopping server.")
 			}
-			msl.Unlock()
 			s.Stop()
 			break
 		}
@@ -123,7 +120,8 @@ func (s *Server) accept(listener net.Listener) {
 		} else if t, ok := conn.(*net.TCPConn); ok {
 			setupTCP(t)
 		}
-		msl.Lock()
+		// Only s.Lock() is needed now — msl was removed because
+		// context.Context and logging are both thread-safe.
 		s.Lock()
 		client := &Client{
 			conn:              conn,
@@ -136,7 +134,6 @@ func (s *Server) accept(listener net.Listener) {
 		s.Add(1)
 		AddClient(client)
 		s.Unlock()
-		msl.Unlock()
 		go client.listen()
 	}
 }

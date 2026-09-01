@@ -17,7 +17,7 @@ What this means in practice:
 - **Easy to run.** Daemon commands, PID files, systemd unit, Docker image, static builds — no runtime dependencies, no interpreter, no `pip install`.
 - **Fast.** A pure-Go relay with no JSON parsing in the hot path (see [Performance](#performance)).
 - **Reliable over flaky networks.** TCP keepalive, write deadlines and an application-level ping keep dead connections from hanging around forever.
-- **Modern Go.** Built with Go 1.24+ idioms (ranging over integers, `testing.B.Loop`, `sync.RWMutex`, Swiss Tables maps, `signal.NotifyContext`).
+- **Modern Go.** Built with Go 1.25+ idioms (ranging over integers, `testing.B.Loop`, `sync.RWMutex`, Swiss Tables maps, `signal.NotifyContext`, `ecdsa` curve constants).
 
 # Downloading / installation
 
@@ -36,7 +36,7 @@ $ sudo cp -a ./nvdaRemoteServer /usr/local/bin/
 
 ## Building from source
 
-With Go 1.24 or newer installed:
+With Go 1.25 or newer installed:
 
 ```console
 $ git clone https://github.com/kirill-jjj/nvdaRemoteServer

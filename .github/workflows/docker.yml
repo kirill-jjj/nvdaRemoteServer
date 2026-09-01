@@ -34,8 +34,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: |
-            tech10/nvdaremoteserver
-            ghcr.io/tech10/nvdaremoteserver-docker
+            kirill-jjj/nvdaremoteserver
+            ghcr.io/kirill-jjj/nvdaremoteserver
       
       - name: Build and push Docker images
         uses: docker/build-push-action@v7

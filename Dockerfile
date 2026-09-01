@@ -1,4 +1,4 @@
-FROM golang:alpine as build
+FROM golang:alpine AS build
 
 RUN apk add --no-cache git gcc musl-dev upx
 RUN mkdir /app
@@ -13,4 +13,4 @@ COPY --from=build /app/nvdaRemoteServer /nvdaRemoteServer
 COPY --from=build /app/cert.pem /cert.pem
 
 EXPOSE 6837
-CMD ["/nvdaRemoteServer", "-conf-read=false", "-cert-file", "/cert.pem", "-key-file", "/cert.pem"]
+CMD ["/nvdaRemoteServer", "-configfile", "", "-certfile", "/cert.pem", "-keyfile", "/cert.pem"]

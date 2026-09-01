@@ -28,8 +28,8 @@ func BenchmarkJsonAdd(b *testing.B) {
 // jsonAddOldMap is the original implementation from the Go server
 // (and the Python server's approach): unmarshal to a map, set the
 // key, marshal back.
-func jsonAddOldMap(data []byte, key string, value interface{}) ([]byte, error) {
-	decode := make(map[string]interface{})
+func jsonAddOldMap(data []byte, key string, value any) ([]byte, error) {
+	decode := make(map[string]any)
 	if err := json.Unmarshal(data, &decode); err != nil {
 		return data, err
 	}

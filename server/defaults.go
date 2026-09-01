@@ -24,17 +24,17 @@ var DEFAULT_ACME_CA    string = ""
 
 var DEFAULT_LOG_FILE string = ""
 
-// The Python server defaults to log level 2.
-var DEFAULT_LOG_LEVEL int = 2
-
+// Log levels use iota so adding a new level requires zero value changes.
 const (
-	LOG_SILENT     int = -1
-	LOG_INFO       int = 0
-	LOG_CONNECTION int = 1
-	LOG_CHANNEL    int = 2
-	LOG_DEBUG      int = 3
-	LOG_PROTOCOL   int = 4
+	LOG_SILENT     = iota - 1 // -1
+	LOG_INFO                  //  0
+	LOG_CONNECTION            //  1
+	LOG_CHANNEL               //  2
+	LOG_DEBUG                 //  3
+	LOG_PROTOCOL              //  4
 )
+
+var DEFAULT_LOG_LEVEL int = LOG_CHANNEL
 
 var (
 	DEFAULT_MOTD                string = ""
@@ -62,7 +62,6 @@ var (
 func init() {
 	switch runtime.GOOS {
 	case "linux":
-		// Same defaults as the Python server on Linux.
 		DEFAULT_CONF_FILE = "/etc/NVDARemoteServer.conf"
 		DEFAULT_CERT_FILE = "/usr/share/NVDARemoteServer/server.pem"
 		DEFAULT_LOG_FILE = "/var/log/NVDARemoteServer/NVDARemoteServer.log"
@@ -75,20 +74,4 @@ func init() {
 	default:
 		// Windows and other systems: empty defaults, like Python.
 	}
-}
-
-func default_cert_file(p string) bool {
-	return (p == DEFAULT_CERT_FILE)
-}
-
-func default_key_file(p string) bool {
-	return (p == DEFAULT_KEY_FILE)
-}
-
-func default_motd(p string) bool {
-	return (p == DEFAULT_MOTD)
-}
-
-func default_motd_always_display(p bool) bool {
-	return (p == DEFAULT_MOTD_ALWAYS_DISPLAY)
 }

@@ -30,7 +30,7 @@ func (c *ClientChannel) Lmotd(ctype, name, password string) string {
 		if c.password != "" {
 			msg += " unless they authenticate"
 			if password == c.password {
-				msg += " with the password " + c.password
+				msg += " (password accepted)"
 			} else {
 				msg += "."
 			}
@@ -42,7 +42,7 @@ func (c *ClientChannel) Lmotd(ctype, name, password string) string {
 			msg += "You won't be able to control any computers connected to this channel."
 		}
 		if c.password == password && c.password != "" {
-			msg += "You are authorized to control any computer connected to this channel. Authorized with password " + c.password
+			msg += "You are authorized to control any computer connected to this channel."
 		}
 	}
 	if !c.locked {
@@ -72,25 +72,22 @@ func (c *ClientChannel) Add(client *Client, password string) {
 	lmotd := c.Lmotd(connection, c.name, password)
 	switch connection {
 	case connTypeMaster:
-		_, exists := c.ClientsMaster[id]
-		if exists {
-			break
+		if _, exists := c.ClientsMaster[id]; !exists {
+			c.ClientsMaster[id] = client
 		}
-		c.ClientsMaster[id] = client
 	case connTypeSlave:
-		_, exists := c.ClientsSlave[id]
-		if exists {
-			break
+		if _, exists := c.ClientsSlave[id]; !exists {
+			c.ClientsSlave[id] = client
 		}
-		c.ClientsSlave[id] = client
 	}
-	_, exists := c.ClientsAll[id]
-	if exists {
+	if _, exists := c.ClientsAll[id]; exists {
 		return
 	}
 	c.ClientsAll[id] = client
 	client.SetChannel(c)
-	scdb := Data{
+
+	// Send client_joined to all other clients in the channel.
+	c.sendJSON(client, Data{
 		Type:    "client_joined",
 		Channel: c.name,
 		ID:      id,
@@ -98,18 +95,13 @@ func (c *ClientChannel) Add(client *Client, password string) {
 			ID:             id,
 			ConnectionType: connection,
 		},
-	}
-	enc, encerr := Encode(scdb)
-	if encerr == nil {
-		c.sendAllLocked(enc, client)
-	} else {
-		Log(LOG_DEBUG, "Error encoding JSON for client "+strconv.Itoa(id)+" while trying to add them to channel "+c.name+"\r\n"+encerr.Error())
-	}
+	})
 
-	scdb.Type = "channel_joined"
-	scdb.Origin = id
-	scdb.ID = 0
-	scdb.Client = nil
+	// Build channel_joined response for the joining client.
+	scdb := Data{
+		Type:   "channel_joined",
+		Origin: id,
+	}
 	if len(clients) > 0 {
 		scdb.UserIds = make([]int, 0, len(clients))
 		scdb.Clients = make([]ClientData, 0, len(clients))
@@ -136,10 +128,9 @@ func (c *ClientChannel) Add(client *Client, password string) {
 				})
 		}
 	}
-	enc, encerr = Encode(scdb)
-	if encerr == nil {
-		client.Send(enc)
-	}
+	c.sendToClient(client, scdb)
+
+	// Send MOTD if configured.
 	if motd != "" || lmotd != "" {
 		mdb := Data{
 			Type:              "motd",
@@ -154,11 +145,9 @@ func (c *ClientChannel) Add(client *Client, password string) {
 			}
 			mdb.MotdAlwaysDisplay = true
 		}
-		enc, encerr = Encode(mdb)
-		if encerr == nil {
-			client.Send(enc)
-		}
+		c.sendToClient(client, mdb)
 	}
+
 	logstr := "Client " + strconv.Itoa(id) + " has joined channel " + c.name
 	if connection != "" {
 		logstr += " as a " + connection + ". "
@@ -172,31 +161,27 @@ func (c *ClientChannel) Add(client *Client, password string) {
 }
 
 func (c *ClientChannel) Remove(client *Client) {
-	defer c.EndIfEmpty()
 	defer c.Unlock()
 	c.Lock()
 	id := client.GetID()
 	connection := client.GetConnectionType()
 	switch connection {
 	case connTypeMaster:
-		_, exists := c.ClientsMaster[id]
-		if !exists {
-			break
+		if _, exists := c.ClientsMaster[id]; exists {
+			delete(c.ClientsMaster, id)
 		}
-		delete(c.ClientsMaster, id)
 	case connTypeSlave:
-		_, exists := c.ClientsSlave[id]
-		if !exists {
-			break
+		if _, exists := c.ClientsSlave[id]; exists {
+			delete(c.ClientsSlave, id)
 		}
-		delete(c.ClientsSlave, id)
 	}
-	_, exists := c.ClientsAll[id]
-	if exists {
+	if _, exists := c.ClientsAll[id]; exists {
 		delete(c.ClientsAll, id)
 	}
 	client.ClearChannel()
-	scdb := Data{
+
+	// Send client_left to remaining clients in the channel.
+	c.sendAllLocked(c.mustEncode(Data{
 		Type:   "client_left",
 		ID:     id,
 		Origin: id,
@@ -204,28 +189,22 @@ func (c *ClientChannel) Remove(client *Client) {
 			ID:             id,
 			ConnectionType: connection,
 		},
-	}
-	enc, encerr := Encode(scdb)
-	if encerr == nil {
-		c.sendAllLocked(enc, client)
-	}
+	}), client)
+
 	Log(LOG_CHANNEL, "Client "+strconv.Itoa(id)+" has left channel "+c.name)
-}
 
-func (c *ClientChannel) EndIfEmpty() bool {
-	c.Lock()
-	if len(c.ClientsAll) > 0 {
-		c.Unlock()
-		return false
+	// Check if channel is empty after removal. Previously this was
+	// split into EndIfEmpty() + Quit() with an unlock/relock in
+	// between, which created a TOCTOU race. Now the check and
+	// cleanup happen under the same lock.
+	if len(c.ClientsAll) == 0 {
+		c.quitLocked()
 	}
-	c.Unlock()
-	c.Quit()
-	return true
 }
 
-func (c *ClientChannel) Quit() {
-	defer c.Unlock()
-	c.Lock()
+// quitLocked removes all clients from the channel and deletes it from
+// the global map. Must be called with c.Lock() held.
+func (c *ClientChannel) quitLocked() {
 	if c.ClientsAll == nil {
 		RemoveChannel(c.name)
 		return
@@ -272,24 +251,20 @@ func (c *ClientChannel) SendAll(msg []byte, client *Client) {
 // client in the channel they get an "nvda_not_connected" notice,
 // otherwise the message goes to everyone except the sender.
 //
-// Note: the original Go server only relayed master -> slaves and
-// slave -> masters and blocked unauthorized masters. The Python server
-// has no authorization at all (any client in the channel relays to
-// everyone), so this matches Python. Locked channels are still
-// protected by their full name, which the client must know.
+// The previous implementation acquired RLock twice (once for the len
+// check, once for the loop), creating a TOCTOU race where the channel
+// size could change between the two lock acquisitions. This version
+// holds a single RLock for both the check and the iteration.
 func (c *ClientChannel) SendOthers(msg []byte, client *Client) {
 	if client == nil {
 		return
 	}
 	c.RLock()
-	n := len(c.ClientsAll)
-	c.RUnlock()
-	if n <= 1 {
+	defer c.RUnlock()
+	if len(c.ClientsAll) <= 1 {
 		client.Send([]byte(`{"type":"nvda_not_connected"}`))
 		return
 	}
-	c.RLock()
-	defer c.RUnlock()
 	for _, sc := range c.ClientsAll {
 		if sc == client {
 			continue
@@ -302,6 +277,39 @@ func (c *ClientChannel) Name() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.name
+}
+
+// sendJSON encodes data and sends it to every client except the
+// excluded one. This replaces the repeated encode-then-check pattern
+// that was duplicated across Add, Remove, and other methods.
+func (c *ClientChannel) sendJSON(exclude *Client, data Data) {
+	c.sendAllLocked(c.mustEncode(data), exclude)
+}
+
+// sendToClient encodes data and sends it to a single client.
+func (c *ClientChannel) sendToClient(client *Client, data Data) {
+	enc := c.mustEncode(data)
+	if enc != nil {
+		client.Send(enc)
+	}
+}
+
+// mustEncode encodes data to JSON, logging and returning nil on error.
+// This replaces the repeated pattern:
+//
+//	enc, encerr := Encode(data)
+//	if encerr == nil {
+//	    ...
+//	} else {
+//	    Log(LOG_DEBUG, "Error encoding JSON...")
+//	}
+func (c *ClientChannel) mustEncode(data Data) []byte {
+	enc, err := Encode(data)
+	if err != nil {
+		Log(LOG_DEBUG, "Error encoding JSON for channel "+c.name+": "+err.Error())
+		return nil
+	}
+	return enc
 }
 
 func NewClientChannel(name, password string, locked bool, client *Client) *ClientChannel {

@@ -25,11 +25,14 @@ func conf_read_python(path string) (map[string]string, error) {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
+		// strings.Cut is cleaner than SplitN for "key=value" parsing:
+		// it returns (key, value, found) and correctly handles values
+		// containing '=' characters.
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
 			continue
 		}
-		opts[strings.TrimSpace(parts[0])] = parts[1]
+		opts[strings.TrimSpace(key)] = value
 	}
 	return opts, nil
 }

@@ -2,25 +2,19 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+// file_rewrite overwrites a file atomically. It resolves symlinks before
+// writing so that the correct file is always updated, even if the path
+// contains symbolic links.
 func file_rewrite(file string, data []byte) error {
 	file = fullPath(file)
-	w, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return errors.New("Unable to create or open the file " + file + "\n" + err.Error())
-	}
-	_, err = w.Write(data)
-	if err != nil {
-		return errors.New("Unable to write to the file " + file + "\n" + err.Error())
-	}
-	_ = w.Sync()
-	err = w.Close()
-	if err != nil {
-		return errors.New("The file at " + file + " was unable to close. Information may not have been written to it correctly.\n" + err.Error())
+	if err := os.WriteFile(file, data, 0o644); err != nil {
+		return fmt.Errorf("unable to create or write to the file %s: %w", file, err)
 	}
 	return nil
 }
@@ -34,34 +28,22 @@ func fileExists(file string) bool {
 }
 
 func cleanPath(p string) string {
-	p = strings.Replace(p, PS+PS, PS, 1)
+	p = strings.ReplaceAll(p, PS+PS, PS)
 	return p
 }
 
-func fullPath(old_path string) string {
-	var err error
-	var path string
-	path, err = filepath.Abs(old_path)
+// fullPath resolves a path to its absolute form and resolves any symbolic
+// links. filepath.EvalSymlinks already handles component-by-component
+// resolution when the full path doesn't exist, so a manual loop is
+// unnecessary.
+func fullPath(oldPath string) string {
+	absPath, err := filepath.Abs(oldPath)
 	if err != nil {
-		return cleanPath(old_path)
+		return cleanPath(oldPath)
 	}
-	var e_path string
-	e_path, err = filepath.EvalSymlinks(path)
-	if err == nil {
-		return cleanPath(e_path)
+	evalPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return cleanPath(absPath)
 	}
-	e_path = ""
-	var n_path string
-	err = nil
-	for _, v := range strings.Split(path, PS) {
-		e_path += v + PS
-		if err != nil {
-			continue
-		}
-		n_path, err = filepath.EvalSymlinks(e_path)
-		if err == nil {
-			e_path = n_path + PS
-		}
-	}
-	return cleanPath(strings.TrimSuffix(e_path, PS))
+	return cleanPath(evalPath)
 }

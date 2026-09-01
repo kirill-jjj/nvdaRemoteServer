@@ -14,7 +14,7 @@ import (
 // after the opening brace, avoiding the decode/re-encode round trip
 // entirely. Non-object messages (raw NVDA remote protocol data) return
 // an error, and the caller relays them unmodified.
-func JsonAdd(data []byte, key string, value interface{}) ([]byte, error) {
+func JsonAdd(data []byte, key string, value any) ([]byte, error) {
 	if len(data) == 0 {
 		return data, errors.New("empty data is not a JSON object")
 	}
@@ -40,7 +40,7 @@ func JsonAdd(data []byte, key string, value interface{}) ([]byte, error) {
 	return res, nil
 }
 
-func Encode(data interface{}) ([]byte, error) {
+func Encode(data any) ([]byte, error) {
 	return json.Marshal(data)
 }
 

@@ -49,8 +49,8 @@ func randomDigits(n int) (string, error) {
 // channelKeyTaken reports whether any existing channel uses key as its
 // name or its password, which would make key an unsafe channel key.
 func channelKeyTaken(key string) bool {
-	sl.RLock()
-	defer sl.RUnlock()
+	mu.RLock()
+	defer mu.RUnlock()
 	if channels == nil {
 		return false
 	}

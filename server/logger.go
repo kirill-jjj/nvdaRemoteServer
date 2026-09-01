@@ -15,7 +15,7 @@ var (
 	log_file     *os.File
 )
 
-func Log(level int, msg ...interface{}) {
+func Log(level int, msg ...any) {
 	if level > loglevel {
 		return
 	}
@@ -24,7 +24,7 @@ func Log(level int, msg ...interface{}) {
 	log_standard.Println(msg...)
 }
 
-func Log_error(msg ...interface{}) {
+func Log_error(msg ...any) {
 	ll.Lock()
 	defer ll.Unlock()
 	log_error.Println(msg...)

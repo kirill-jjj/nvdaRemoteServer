@@ -155,15 +155,15 @@ func Configure() error {
 		motdAlwaysDisplay = true
 	}
 
-	if !default_motd(motd) {
+	if motd != DEFAULT_MOTD {
 		logstr := "The server will display the following message of the day:\r\n" + motd
-		if default_motd_always_display(motdAlwaysDisplay) {
+		if motdAlwaysDisplay != DEFAULT_MOTD_ALWAYS_DISPLAY {
 			logstr += "\r\nThe server will tell each client to display this message of the day upon each connection."
 		}
 		Log(LOG_DEBUG, logstr)
 	}
 
-	if default_motd(motd) && !default_motd_always_display(motdAlwaysDisplay) {
+	if motd == DEFAULT_MOTD && motdAlwaysDisplay == DEFAULT_MOTD_ALWAYS_DISPLAY {
 		Log(LOG_INFO, "The server has been told to always display a message of the day, but no message of the day has been set. The -motd_force_display parameter will be reset to false.")
 		motdAlwaysDisplay = false
 	}
@@ -175,15 +175,15 @@ func Configure() error {
 	var config *tls.Config
 	var err error
 
-	if !default_cert_file(cert) && !fileExists(cert) {
+	if cert != DEFAULT_CERT_FILE && !fileExists(cert) {
 		Log(LOG_INFO, "The certificate file at "+cert+" does not exist.")
 		generate = true
 	}
-	if !default_key_file(key) && !fileExists(key) {
+	if key != DEFAULT_KEY_FILE && !fileExists(key) {
 		Log(LOG_INFO, "The key file at "+key+" does not exist.")
 		generate = true
 	}
-	if default_cert_file(cert) || default_key_file(key) {
+	if cert == DEFAULT_CERT_FILE || key == DEFAULT_KEY_FILE {
 		generate = true
 	}
 
@@ -234,7 +234,11 @@ func Configure() error {
 		}
 	}
 
-	config.MinVersion = tls.VersionTLS12
+	// TLS 1.3 is the minimum: it is faster (1-RTT handshake vs 2-RTT),
+	// removes cipher suite negotiation (reducing downgrade attacks),
+	// and encrypts the certificate chain. TLS 1.2 is deprecated for
+	// new deployments by most security standards as of 2025.
+	config.MinVersion = tls.VersionTLS13
 
 	// Build the listen addresses from the IPv4 and IPv6 interface and
 	// port options, like the Python server does. When both interfaces

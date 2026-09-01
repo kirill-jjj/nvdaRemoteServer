@@ -166,12 +166,15 @@ func (c *Client) listen() {
 			}
 		}
 	}()
-	// Stopping and pinging our client
+	// Stopping and pinging our client.
+	// msl (main server lock) was removed here: context.Context is
+	// already thread-safe for Done() checks, and logging has its own
+	// mutex. This eliminates the triple-lock nesting
+	// (msl → server → client) that was a deadlock risk.
 	go func() {
 		for {
 			select {
 			case <-c.ctx.Done():
-				msl.Lock()
 				c.s.Lock()
 				c.t.Stop()
 				c.Lock()
@@ -180,7 +183,6 @@ func (c *Client) listen() {
 				close(c.sd)
 				c.Unlock()
 				c.s.Unlock()
-				msl.Unlock()
 				return
 			case <-c.t.C:
 				c.Send(ping_msg)
@@ -206,7 +208,7 @@ func (c *Client) listen() {
 	for {
 		message, err := reader.ReadBytes(EndMessage)
 		if err != nil {
-			msl.Lock()
+			// Mctx.Err() is thread-safe — no msl needed.
 			if Mctx.Err() == nil {
 				c.Lock()
 				if !c.closed {
@@ -216,7 +218,6 @@ func (c *Client) listen() {
 				}
 				c.Unlock()
 			}
-			msl.Unlock()
 			return
 		}
 		if len(message) == 1 {
@@ -228,27 +229,49 @@ func (c *Client) listen() {
 			c.Close()
 			return
 		}
-		message = bytes.TrimRight(message, string(EndMessage))
+		// Use a string literal "\n" instead of string(EndMessage)
+		// to avoid an allocation per message. The byte-to-string
+		// conversion allocates a new string on every call, while a
+		// string literal is a compile-time constant.
+		message = bytes.TrimRight(message, "\n")
 		Log(LOG_PROTOCOL, "Data received from client "+idstr+"\r\n"+string(message))
 		MessageReceived(c, message)
 	}
 }
 
 // Send bytes to client.
+// Sends are buffered through c.sd (capacity 100). The send is
+// non-blocking with three cases:
+//
+//  1. c.sd <- b:   channel has space, send succeeds.
+//  2. c.ctx.Done(): client is shutting down, drop the message.
+//     Context is always cancelled BEFORE c.sd is closed (see
+//     shutdown goroutine), so this case fires first and avoids
+//     the send-on-closed-channel panic in almost all cases.
+//  3. default:      channel full (client too slow), drop the message.
+//
+// The recover() is a safety net for the extremely rare race where
+// c.sd is closed between select evaluation and the actual send.
+//
+// This design prevents a slow client from freezing the entire
+// channel: without non-blocking send, Remove → sendAllLocked →
+// Send would block on a full channel while holding the channel lock.
 func (c *Client) Send(b []byte) {
+	if len(b) == 0 {
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			c.Close()
 		}
 	}()
-	c.RLock()
-	if c.closed {
-		c.RUnlock()
-		return
+	select {
+	case c.sd <- b:
+	case <-c.ctx.Done():
+		// Client is shutting down — drop rather than risk
+		// sending on a channel that will be closed momentarily.
+	default:
+		// Channel full — client is too slow or disconnected.
+		// Drop the message rather than blocking the sender.
 	}
-	c.RUnlock()
-	if len(b) == 0 {
-		return
-	}
-	c.sd <- b
 }

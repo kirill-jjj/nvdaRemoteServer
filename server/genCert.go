@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -42,14 +41,17 @@ func gen_cert() (*tls.Config, error) {
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 	}
+	// elliptic.P521() curve constant is not deprecated — only
+	// elliptic.GenerateKey() is. We use ecdsa.GenerateKey() with
+	// the elliptic curve constant, which is the recommended pattern.
 	priv, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
-	pubKeyBytes, _ := x509.MarshalPKIXPublicKey(&priv.PublicKey)
-	keyID := sha1.Sum(pubKeyBytes)
-	ca.SubjectKeyId = keyID[:]
-	ca.AuthorityKeyId = keyID[:]
+	// SubjectKeyId and AuthorityKeyId are intentionally left empty.
+	// Since Go 1.25, CreateCertificate populates SubjectKeyId
+	// automatically using truncated SHA-256, which is more secure
+	// than the previous SHA-1 approach.
 	caBytes, cerr := x509.CreateCertificate(rand.Reader, ca, ca, &priv.PublicKey, priv)
 	if cerr != nil {
 		return nil, cerr
@@ -64,7 +66,7 @@ func gen_cert() (*tls.Config, error) {
 		return nil, err
 	}
 
-	mpk, merr := x509.MarshalPKCS8PrivateKey(priv)
+	tmpk, merr := x509.MarshalPKCS8PrivateKey(priv)
 	if merr != nil {
 		return nil, merr
 	}
@@ -72,7 +74,7 @@ func gen_cert() (*tls.Config, error) {
 	certPrivKeyPEM := new(bytes.Buffer)
 	err = pem.Encode(certPrivKeyPEM, &pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: mpk,
+		Bytes: tmpk,
 	})
 	if err != nil {
 		return nil, err

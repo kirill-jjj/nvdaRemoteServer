@@ -8,16 +8,25 @@ import (
 )
 
 var (
-	sl         sync.RWMutex
 	EndMessage byte = '\n'
 	lastID     atomic.Int32
 	clients    map[*Client]struct{}
 	channels   map[string]*ClientChannel
 )
 
+// mu protects the global clients and channels maps. All public functions
+// that read or write these maps must hold mu. The previous design also
+// used a separate msl ("main server lock") to gate access to
+// Mctx.Err() checks and to serialize accept/shutdown paths. This was
+// removed because context.Context is already safe for concurrent use
+// and logging has its own mutex (ll in logger.go). Removing msl
+// eliminates the triple-lock nesting (msl → server → client) that was
+// a deadlock risk.
+var mu sync.RWMutex
+
 func AddClient(c *Client) {
-	sl.Lock()
-	defer sl.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 	id := int(lastID.Add(1))
 	c.SetID(id)
 	if clients == nil {
@@ -28,27 +37,28 @@ func AddClient(c *Client) {
 }
 
 func FindClient(c *Client) bool {
-	sl.RLock()
-	defer sl.RUnlock()
-	if clients == nil {
-		return false
-	}
+	mu.RLock()
+	defer mu.RUnlock()
 	_, exists := clients[c]
 	return exists
 }
 
+// RemoveClient removes a client from the global client map and its
+// channel. The existence check and deletion happen under a single lock
+// acquisition to avoid TOCTOU (time-of-check/time-of-use) races.
 func RemoveClient(c *Client) {
-	if !FindClient(c) {
-		Log(LOG_DEBUG, "Client "+strconv.Itoa(c.GetID())+" is already disconnected.")
-		return
-	}
 	cc := c.GetChannel()
 	if cc != nil {
 		cc.Remove(c)
 	}
-	sl.Lock()
-	defer sl.Unlock()
-	Log(LOG_CONNECTION, "Client "+strconv.Itoa(c.GetID())+" has disconnected.")
+	mu.Lock()
+	defer mu.Unlock()
+	id := c.GetID()
+	if _, exists := clients[c]; !exists {
+		Log(LOG_DEBUG, "Client "+strconv.Itoa(id)+" is already disconnected.")
+		return
+	}
+	Log(LOG_CONNECTION, "Client "+strconv.Itoa(id)+" has disconnected.")
 	delete(clients, c)
 	if len(clients) == 0 {
 		clients = nil
@@ -57,8 +67,8 @@ func RemoveClient(c *Client) {
 }
 
 func AddChannel(name, password string, locked bool, c *Client) {
-	sl.Lock()
-	defer sl.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 	if channels == nil {
 		channels = make(map[string]*ClientChannel)
 	}
@@ -66,7 +76,7 @@ func AddChannel(name, password string, locked bool, c *Client) {
 	if locked {
 		logstr += " This is a locked channel. "
 		if password != "" {
-			logstr += "Clients can control a computer with the password " + password
+			logstr += "Clients can control a computer"
 		} else {
 			logstr += "No computers can be controlled on this channel."
 		}
@@ -77,11 +87,8 @@ func AddChannel(name, password string, locked bool, c *Client) {
 }
 
 func FindChannel(name string) *ClientChannel {
-	sl.RLock()
-	defer sl.RUnlock()
-	if channels == nil {
-		return nil
-	}
+	mu.RLock()
+	defer mu.RUnlock()
 	c, exists := channels[name]
 	if !exists {
 		return nil
@@ -90,8 +97,8 @@ func FindChannel(name string) *ClientChannel {
 }
 
 func RemoveChannel(name string) {
-	sl.Lock()
-	defer sl.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 	if channels == nil {
 		return
 	}

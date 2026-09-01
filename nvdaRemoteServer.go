@@ -28,7 +28,7 @@ func main() {
 		Log_close()
 		os.Exit(1)
 	}
-	defer PanicHandle.Catch()
+	defer CatchPanic()
 	PidfileSet()
 	Log(LOG_INFO, "Server started. Running under PID "+PID_STR+". Server version "+Version)
 	wait()

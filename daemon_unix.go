@@ -52,6 +52,22 @@ func daemonStatus(pidfile string) (int, bool) {
 	return pid, pidAlive(pid)
 }
 
+// waitForProcess polls until the process is no longer alive or the
+// timeout expires. Returns true if the process stopped within the
+// timeout. This replaces the duplicated 50-iteration polling loops
+// that were repeated across stop, kill, and restart commands.
+func waitForProcess(pid int) bool {
+	const maxAttempts = 50
+	const pollInterval = 200 * time.Millisecond
+	for i := 0; i < maxAttempts; i++ {
+		if !pidAlive(pid) {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
 func daemonCmd(cmd string, rest []string) {
 	pidfile := findPidFile(rest)
 	pid, running := daemonStatus(pidfile)
@@ -70,16 +86,13 @@ func daemonCmd(cmd string, rest []string) {
 		}
 		fmt.Printf("Stopping server with pid %d...\n", pid)
 		_ = syscall.Kill(pid, syscall.SIGTERM)
-		for i := 0; i < 50; i++ {
-			if !pidAlive(pid) {
-				fmt.Println("Server stopped.")
-				_ = os.Remove(pidfile)
-				return
-			}
-			time.Sleep(200 * time.Millisecond)
+		if waitForProcess(pid) {
+			fmt.Println("Server stopped.")
+			_ = os.Remove(pidfile)
+		} else {
+			fmt.Fprintln(os.Stderr, "Server did not stop in time. Use the kill command to force it.")
+			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stderr, "Server did not stop in time. Use the kill command to force it.")
-		os.Exit(1)
 	case "kill":
 		if !running {
 			fmt.Println("Server is not running.")
@@ -87,27 +100,19 @@ func daemonCmd(cmd string, rest []string) {
 		}
 		fmt.Printf("Killing server with pid %d...\n", pid)
 		_ = syscall.Kill(pid, syscall.SIGKILL)
-		for i := 0; i < 50; i++ {
-			if !pidAlive(pid) {
-				fmt.Println("Server killed.")
-				_ = os.Remove(pidfile)
-				return
-			}
-			time.Sleep(200 * time.Millisecond)
+		if waitForProcess(pid) {
+			fmt.Println("Server killed.")
+			_ = os.Remove(pidfile)
+		} else {
+			fmt.Fprintln(os.Stderr, "Server could not be killed.")
+			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stderr, "Server could not be killed.")
-		os.Exit(1)
 	case "restart":
 		if running {
 			fmt.Printf("Stopping server with pid %d...\n", pid)
 			_ = syscall.Kill(pid, syscall.SIGTERM)
-			for i := 0; i < 50; i++ {
-				if !pidAlive(pid) {
-					break
-				}
-				time.Sleep(200 * time.Millisecond)
-			}
-			if pidAlive(pid) {
+			if !waitForProcess(pid) {
+				// Force kill if graceful stop failed.
 				_ = syscall.Kill(pid, syscall.SIGKILL)
 			}
 			_ = os.Remove(pidfile)
