@@ -234,11 +234,12 @@ func Configure() error {
 		}
 	}
 
-	// TLS 1.3 is the minimum: it is faster (1-RTT handshake vs 2-RTT),
-	// removes cipher suite negotiation (reducing downgrade attacks),
-	// and encrypts the certificate chain. TLS 1.2 is deprecated for
-	// new deployments by most security standards as of 2025.
-	config.MinVersion = tls.VersionTLS13
+	// TLS 1.2 is the minimum: NVDA Remote addon (Python) bundled with
+	// NVDA uses ssl.SSLContext() which defaults to PROTOCOL_TLS. On
+	// Python 3.7-3.9 (used by NVDA 2019.3-2023.1), TLS 1.3 is not
+	// available, so requiring TLS 1.3 breaks compatibility.
+	// TLS 1.2 is still secure for this use case (relay server).
+	config.MinVersion = tls.VersionTLS12
 
 	// Build the listen addresses from the IPv4 and IPv6 interface and
 	// port options, like the Python server does. When both interfaces
