@@ -99,8 +99,9 @@ func (c *ClientChannel) Add(client *Client, password string) {
 
 	// Build channel_joined response for the joining client.
 	scdb := Data{
-		Type:   "channel_joined",
-		Origin: id,
+		Type:    "channel_joined",
+		Channel: c.name,
+		Origin:  id,
 	}
 	if len(clients) > 0 {
 		scdb.UserIds = make([]int, 0, len(clients))
@@ -167,17 +168,11 @@ func (c *ClientChannel) Remove(client *Client) {
 	connection := client.GetConnectionType()
 	switch connection {
 	case connTypeMaster:
-		if _, exists := c.ClientsMaster[id]; exists {
-			delete(c.ClientsMaster, id)
-		}
+		delete(c.ClientsMaster, id)
 	case connTypeSlave:
-		if _, exists := c.ClientsSlave[id]; exists {
-			delete(c.ClientsSlave, id)
-		}
+		delete(c.ClientsSlave, id)
 	}
-	if _, exists := c.ClientsAll[id]; exists {
-		delete(c.ClientsAll, id)
-	}
+	delete(c.ClientsAll, id)
 	client.ClearChannel()
 
 	// Send client_left to remaining clients in the channel.
