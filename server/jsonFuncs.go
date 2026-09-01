@@ -4,18 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
-// JsonAdd adds a key/value pair to a JSON object message.
-//
-// The original implementation decoded the message into a
-// map[string]any and re-encoded it, which meant every relayed
-// message was parsed and serialized twice. The NVDA remote protocol
-// messages are flat JSON objects, so the field can be inserted right
-// after the opening brace, avoiding the decode/re-encode round trip
-// entirely. Non-object messages (raw NVDA remote protocol data) return
-// an error, and the caller relays them unmodified.
-func JsonAdd(data []byte, key string, value any) ([]byte, error) {
+// JsonAddOrigin inserts an "origin" field with an integer value into a
+// flat JSON object message. This is a specialized hot-path function:
+// the NVDA Remote relay adds "origin" to every message, and the value
+// is always an int (client ID). Using strconv.AppendInt writes digits
+// directly into the result buffer, avoiding json.Marshal's reflection
+// and intermediate allocation.
+func JsonAddOrigin(data []byte, id int) ([]byte, error) {
 	if len(data) == 0 {
 		return data, errors.New("empty data is not a JSON object")
 	}
@@ -26,17 +24,11 @@ func JsonAdd(data []byte, key string, value any) ([]byte, error) {
 	if i >= len(data) || data[i] != '{' {
 		return data, errors.New("not a JSON object")
 	}
-	val, err := json.Marshal(value)
-	if err != nil {
-		return data, fmt.Errorf("marshaling value for key %q: %w", key, err)
-	}
-	// Pre-allocate with exact capacity to avoid growing.
-	res := make([]byte, 0, len(data)+len(val)+len(key)+5)
+	// Pre-allocate: "origin": + up to 10 digits for int + comma = 20 bytes max.
+	res := make([]byte, 0, len(data)+20)
 	res = append(res, data[:i+1]...)
-	res = append(res, '"')
-	res = append(res, key...)
-	res = append(res, '"', ':')
-	res = append(res, val...)
+	res = append(res, `"origin":`...)
+	res = strconv.AppendInt(res, int64(id), 10)
 	res = append(res, ',')
 	res = append(res, data[i+1:]...)
 	return res, nil

@@ -9,8 +9,8 @@ import (
 var (
 	EndMessage byte = '\n'
 	lastID     atomic.Int32
-	clients    map[*Client]struct{}
-	channels   map[string]*ClientChannel
+	clients    = make(map[*Client]struct{})
+	channels   = make(map[string]*ClientChannel)
 )
 
 // mu protects the global clients and channels maps. All public functions
@@ -28,9 +28,6 @@ func AddClient(c *Client) {
 	defer mu.Unlock()
 	id := int(lastID.Add(1))
 	c.SetID(id)
-	if clients == nil {
-		clients = make(map[*Client]struct{})
-	}
 	clients[c] = struct{}{}
 	Log(LOG_CONNECTION, "client connected", "id", id, "ip", c.GetIP())
 }
@@ -60,7 +57,6 @@ func RemoveClient(c *Client) {
 	Log(LOG_CONNECTION, "client disconnected", "id", id)
 	delete(clients, c)
 	if len(clients) == 0 {
-		clients = nil
 		Log(LOG_DEBUG, "no clients connected to server")
 	}
 }
@@ -68,9 +64,6 @@ func RemoveClient(c *Client) {
 func AddChannel(name, password string, locked bool, c *Client) {
 	mu.Lock()
 	defer mu.Unlock()
-	if channels == nil {
-		channels = make(map[string]*ClientChannel)
-	}
 	if locked {
 		Log(LOG_CHANNEL, "channel created (locked)", "name", name, "has_password", password != "")
 	} else {
@@ -93,16 +86,12 @@ func FindChannel(name string) *ClientChannel {
 func RemoveChannel(name string) {
 	mu.Lock()
 	defer mu.Unlock()
-	if channels == nil {
-		return
-	}
 	if _, exists := channels[name]; !exists {
 		return
 	}
 	delete(channels, name)
 	Log(LOG_CHANNEL, "channel removed", "name", name)
 	if len(channels) == 0 {
-		channels = nil
 		Log(LOG_DEBUG, "no channels on server")
 	}
 }
@@ -117,7 +106,7 @@ func MessageReceived(c *Client, pmsg []byte) {
 	if cc != nil {
 		// The origin field is always added, mirroring the Python
 		// server, which has no option to disable it.
-		pmsg, err := JsonAdd(pmsg, "origin", id)
+		pmsg, err := JsonAddOrigin(pmsg, id)
 		if err != nil {
 			Log(LOG_DEBUG, "error adding origin to message", "id", id, "error", err)
 			// Non-JSON data (raw NVDA remote protocol messages)

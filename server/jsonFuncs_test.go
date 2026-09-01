@@ -13,12 +13,13 @@ import (
 //
 // testing.B.Loop is a Go 1.24 addition.
 
-// BenchmarkJsonAdd measures the current implementation: byte-level
-// insertion of "origin" right after the opening brace, no parsing.
-func BenchmarkJsonAdd(b *testing.B) {
+// BenchmarkJsonAddOrigin measures the specialized origin insertion:
+// strconv.AppendInt writes digits directly into the result buffer,
+// avoiding json.Marshal's reflection and intermediate allocation.
+func BenchmarkJsonAddOrigin(b *testing.B) {
 	msg := []byte(`{"type":"talk","channel":"testconf","message":"hello"}`)
 	for b.Loop() {
-		out, err := JsonAdd(msg, "origin", 42)
+		out, err := JsonAddOrigin(msg, 42)
 		if err != nil {
 			b.Fatal(err)
 		}
