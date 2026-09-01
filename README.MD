@@ -9,6 +9,7 @@ What this means in practice:
 - The same `option=value` configuration file (with `#` comments), the same default location (`/etc/NVDARemoteServer.conf`), the same command line flags, the same defaults. A configuration file written for the Python server works as is.
 - The same daemon commands: `start`, `stop`, `restart`, `status`, `kill`, with the same PID-file behavior.
 - Automatic generation of a self-signed TLS certificate if none is configured, so the server works out of the box — no certificate files, no entropy dances.
+- Built-in Let's Encrypt / CertMagic integration: just pass `-domain your-domain.com` and certificates are obtained and renewed automatically.
 - The full relay protocol is identical, and the server is dramatically faster than Python (see [Performance](#performance)).
 
 # Goals
@@ -17,7 +18,8 @@ What this means in practice:
 - **Easy to run.** Daemon commands, PID files, systemd unit, Docker image, static builds — no runtime dependencies, no interpreter, no `pip install`.
 - **Fast.** A pure-Go relay with no JSON parsing in the hot path (see [Performance](#performance)).
 - **Reliable over flaky networks.** TCP keepalive, write deadlines and an application-level ping keep dead connections from hanging around forever.
-- **Modern Go.** Built with Go 1.25+ idioms (ranging over integers, `testing.B.Loop`, `sync.RWMutex`, Swiss Tables maps, `signal.NotifyContext`, `ecdsa` curve constants).
+- **Non-blocking relay.** Slow or disconnected clients never freeze the server — messages are dropped rather than blocking the channel.
+- **Modern Go.** Built with Go 1.25+ idioms (ranging over integers, `testing.B.Loop`, `signal.NotifyContext`, `sync.RWMutex`, `strings.Cut`, `fmt.Errorf %w`).
 
 # Downloading / installation
 
@@ -164,7 +166,7 @@ Rules, matching the Python server exactly:
 - If the configuration file can't be opened, the program prints `Can't open the configuration file, using default or commandline values` and continues.
 - `includeTracebacks` is accepted for compatibility but has no effect: this Go server has no tracebacks.
 
-If the configured certificate file does not exist, the server generates its own self-signed certificate in memory, so it works out of the box. To use a real certificate, point `certfile`/`keyfile` at your files (see [Let's Encrypt](#lets-encrypt)).
+If the configured certificate file does not exist, the server generates its own self-signed certificate in memory, so it works out of the box. To use a real certificate, point `certfile`/`keyfile` at your files (see [Let's Encrypt / CertMagic](#lets-encrypt--certmagic)).
 
 # Command line reference
 
@@ -174,6 +176,7 @@ nvdaRemoteServer [-configfile /etc/NVDARemoteServer.conf] [-interface 0.0.0.0] [
                  [-pidfile /path/to/pid] [-logfile /path/to/log] [-loglevel 2] [-motd "message"]
                  [-motd_force_display=false] [-includeTracebacks=false] [-timeout 5.0]
                  [-ping_time 300] [-allowedMessageLength 0]
+                 [-domain your-domain.com] [-acme_email you@example.com] [-acme_ca ""]
 ```
 
 Brackets indicate optional parameters. Flags mirror the Python server by name and behavior; underscores can also be written with double dashes (`--ping_time=60`).
@@ -196,6 +199,9 @@ Brackets indicate optional parameters. Flags mirror the Python server by name an
 | `-timeout` | `5.0` | Seconds a client may stay connected without negotiating TLS before being dropped. Values below 1.0 reset to the default. |
 | `-ping_time` | `300` | Seconds between application-level pings to all clients. Values below 30 reset to the default. |
 | `-allowedMessageLength` | `0` | Maximum length of incoming client messages in characters; longer messages get the client disconnected. `0` means no limit. |
+| `-domain` | *(empty)* | Domain name for automatic TLS certificate management via Let's Encrypt / CertMagic. When set, certificates are obtained and renewed automatically. |
+| `-acme_email` | *(empty)* | Email address for ACME registration (used with `-domain`). |
+| `-acme_ca` | *(empty)* | Custom ACME CA URL (optional, for testing with staging servers). |
 
 Logging levels (each level also logs everything below it):
 
@@ -213,7 +219,7 @@ $ nvdaRemoteServer version
 development
 
 $ nvdaRemoteServer buildinfo
-This application was compiled with go1.26.2. It was compiled for the amd64 architecture and the linux operating system.
+This application was compiled with go1.25.0. It was compiled for the amd64 architecture and the linux operating system.
 ```
 
 # TLS / certificates
@@ -221,6 +227,28 @@ This application was compiled with go1.26.2. It was compiled for the amd64 archi
 ## Automatic self-signed certificate
 
 If no certificate is configured (or the configured file doesn't exist), the server generates a self-signed certificate in memory at startup. No files are written, nothing to manage — it simply works.
+
+## Let's Encrypt / CertMagic
+
+The server has built-in support for automatic certificate management via [CertMagic](https://github.com/caddyserver/certmagic). Just pass your domain:
+
+```console
+$ nvdaRemoteServer start -domain your-domain.com
+```
+
+Certificates are obtained automatically from Let's Encrypt and renewed in the background. No certbot, no hooks, no manual renewal.
+
+For production, register an email for ACME notifications:
+
+```console
+$ nvdaRemoteServer start -domain your-domain.com -acme_email you@example.com
+```
+
+To use a custom ACME CA (e.g. for testing):
+
+```console
+$ nvdaRemoteServer start -domain your-domain.com -acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+```
 
 ## Using your own certificate
 
@@ -230,24 +258,9 @@ Point `certfile` and `keyfile` at your PEM files (both may be the same file, as 
 $ nvdaRemoteServer start -certfile /etc/ssl/nvda/server.pem -keyfile /etc/ssl/nvda/server.pem
 ```
 
-## Let's Encrypt
+## Legacy certbot hook
 
-The repository contains a post-renewal hook for [certbot](https://certbot.eff.org/), `NVDARemoteCertificate-letsencrypt`, which copies the renewed certificate into the file used by `certfile`/`keyfile`.
-
-1. Edit the script and set `DOMAIN` to your server's domain.
-2. Install the hook:
-
-```console
-$ sudo install -m 755 NVDARemoteCertificate-letsencrypt /etc/letsencrypt/renewal-hooks/post/
-```
-
-3. Issue a certificate:
-
-```console
-$ sudo certbot certonly --standalone -d your-domain.com
-```
-
-After each renewal certbot runs the hook automatically; the server picks up the new certificate on its next restart.
+The repository also contains a post-renewal hook for [certbot](https://certbot.eff.org/), `NVDARemoteCertificate-letsencrypt`, which copies the renewed certificate into the file used by `certfile`/`keyfile`. This is not needed when using the built-in CertMagic integration.
 
 # Protocol and behavior notes
 
@@ -266,6 +279,7 @@ Conscious differences from the Python server, all invisible to clients:
 - **Key generation.** 9-digit channel keys come from `crypto/rand` (the Python server uses `random.randint`, which is not cryptographically strong).
 - **Reliability.** TCP keepalive (60 s), an 8-second write deadline and a 300 s application ping. The Python server has none of these; a half-dead client could hang around forever there.
 - **Batching.** Outgoing messages are flushed with a smart batch (immediate when idle, ~5 ms when busy), so many small messages are coalesced into one TCP segment.
+- **Non-blocking send.** If a client is too slow or disconnected, messages are dropped rather than blocking the entire channel. This prevents one slow client from freezing the server for everyone else.
 
 # Performance
 
@@ -275,7 +289,7 @@ Numbers measured on localhost (TLS enabled, two clients, one relaying to the oth
 |---|---|---|
 | Relay throughput (5,000 messages) | 72,883 msg/s (~14 µs) | ~97 msg/s (~10 ms) |
 | Relay throughput (20,000 messages) | 53,679 msg/s (~19 µs) | ~97 msg/s (~10 ms) |
-| `origin` field insertion | 158 ns, 2 allocations | `json.loads`+`json.dumps` per message |
+| `origin` field insertion | 230 ns, 3 allocations | `json.loads`+`json.dumps` per message |
 
 That's roughly **600× faster** than the Python server on relay throughput. The JSON microbenchmarks live in `server/jsonFuncs_test.go`:
 
@@ -283,7 +297,7 @@ That's roughly **600× faster** than the Python server on relay throughput. The 
 $ go test -bench . -benchmem -run '^$' ./server/
 ```
 
-The old map-based JSON insertion (`Unmarshal` → map → `Marshal`) is kept there as `jsonAddOldMap` for comparison: 3,150 ns and 28 allocations vs. 158 ns and 2 for the byte-level insert.
+The old map-based JSON insertion (`Unmarshal` → map → `Marshal`) is kept there as `jsonAddOldMap` for comparison: 3,611 ns and 24 allocations vs. 230 ns and 3 for the byte-level insert.
 
 # Bugs
 
@@ -293,9 +307,9 @@ Open an issue describing the bug and how to reproduce it. Be as detailed as you 
 
 Fork the project and submit a pull request from a separate branch. Please:
 
-- Test your contribution before submitting; make sure the program compiles (`go build ./...`, `go vet ./...`, `gofmt`).
+- Test your contribution before submitting; make sure the program compiles (`go build ./...`), passes `go vet ./...`, and passes `golangci-lint run ./...`.
 - Keep the protocol behavior unchanged unless the change is explicitly about it.
-- Run the protocol test suite (`/tmp` scripts aside, the server has unit tests in `server/`) and, for concurrency changes, `go test -race ./...`.
+- For concurrency changes, run `go test -race ./...`.
 
 # License
 
