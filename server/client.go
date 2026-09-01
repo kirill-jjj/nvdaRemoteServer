@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-var ping_msg = []byte(`{"type":"ping"}`)
+var (
+	ping_msg          = []byte(`{"type":"ping"}`)
+	not_connected_msg = []byte(`{"type":"nvda_not_connected"}`)
+)
 
 const write_sec int = 8
 
@@ -107,6 +110,14 @@ func (c *Client) SetVersion(version int) {
 	c.version = version
 }
 
+// logClientError logs a client error with the standard format:
+// "Error <context> to client <id>.\r\n<err>\r\nClosing connection."
+// This replaces the 5 duplicated string concatenation patterns in
+// the writer and listener goroutines.
+func (c *Client) logClientError(context string, err error) {
+	Log(LOG_DEBUG, "Error "+context+" to client "+strconv.Itoa(c.id)+".\r\n"+err.Error()+"\r\nClosing connection.")
+}
+
 // Handle client data.
 func (c *Client) listen() {
 	idstr := strconv.Itoa(c.id)
@@ -144,14 +155,14 @@ func (c *Client) listen() {
 				Log(LOG_PROTOCOL, "Data sent to client "+idstr+"\r\n"+string(b))
 				_ = c.conn.SetWriteDeadline(time.Now().Add(time.Duration(write_sec) * time.Second))
 				if _, err := bw.Write(b); err != nil {
-					Log(LOG_DEBUG, "Error sending message to client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+					c.logClientError("sending message", err)
 					c.Close()
 					return
 				}
 				_ = bw.WriteByte(EndMessage)
 				if len(c.sd) == 0 {
 					if err := bw.Flush(); err != nil {
-						Log(LOG_DEBUG, "Error sending data to client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+						c.logClientError("sending data", err)
 						c.Close()
 						return
 					}
@@ -159,7 +170,7 @@ func (c *Client) listen() {
 				c.t.Reset(time.Duration(pingTime) * time.Second)
 			case <-flushTicker.C:
 				if err := bw.Flush(); err != nil {
-					Log(LOG_DEBUG, "Error flushing data to client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+					c.logClientError("flushing data", err)
 					c.Close()
 					return
 				}
@@ -200,7 +211,7 @@ func (c *Client) listen() {
 	}
 	if tc, ok := c.conn.(*tls.Conn); ok {
 		if err := tc.Handshake(); err != nil {
-			Log(LOG_DEBUG, "TLS handshake failed for client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+			c.logClientError("TLS handshake", err)
 			return
 		}
 	}
@@ -213,7 +224,7 @@ func (c *Client) listen() {
 				c.Lock()
 				if !c.closed {
 					if !errors.Is(err, io.EOF) {
-						Log(LOG_DEBUG, "Error receiving message from client "+idstr+".\r\n"+err.Error()+"\r\nClosing connection.")
+						c.logClientError("receiving message", err)
 					}
 				}
 				c.Unlock()

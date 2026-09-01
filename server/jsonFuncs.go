@@ -8,7 +8,7 @@ import (
 // JsonAdd adds a key/value pair to a JSON object message.
 //
 // The original implementation decoded the message into a
-// map[string]interface{} and re-encoded it, which meant every relayed
+// map[string]any and re-encoded it, which meant every relayed
 // message was parsed and serialized twice. The NVDA remote protocol
 // messages are flat JSON objects, so the field can be inserted right
 // after the opening brace, avoiding the decode/re-encode round trip
@@ -29,6 +29,7 @@ func JsonAdd(data []byte, key string, value any) ([]byte, error) {
 	if err != nil {
 		return data, err
 	}
+	// Pre-allocate with exact capacity to avoid growing.
 	res := make([]byte, 0, len(data)+len(val)+len(key)+5)
 	res = append(res, data[:i+1]...)
 	res = append(res, '"')

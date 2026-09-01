@@ -262,7 +262,7 @@ func (c *ClientChannel) SendOthers(msg []byte, client *Client) {
 	c.RLock()
 	defer c.RUnlock()
 	if len(c.ClientsAll) <= 1 {
-		client.Send([]byte(`{"type":"nvda_not_connected"}`))
+		client.Send(not_connected_msg)
 		return
 	}
 	for _, sc := range c.ClientsAll {
