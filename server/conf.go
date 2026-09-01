@@ -16,7 +16,7 @@ import (
 func conf_read_python(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading config file %s: %w", path, err)
 	}
 	opts := make(map[string]string)
 	for _, line := range strings.Split(string(data), "\n") {

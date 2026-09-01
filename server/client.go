@@ -115,6 +115,8 @@ func (c *Client) logClientError(context string, err error) {
 }
 
 // Handle client data.
+//
+//nolint:gocyclo // Main event loop: complexity is inherent to the protocol handling.
 func (c *Client) listen() {
 	idstr := c.id
 	c.Lock()
@@ -206,7 +208,7 @@ func (c *Client) listen() {
 		_ = c.conn.SetDeadline(time.Now().Add(time.Duration(timeoutSecs * float64(time.Second))))
 	}
 	if tc, ok := c.conn.(*tls.Conn); ok {
-		if err := tc.Handshake(); err != nil {
+		if err := tc.HandshakeContext(c.ctx); err != nil {
 			c.logClientError("TLS handshake", err)
 			return
 		}

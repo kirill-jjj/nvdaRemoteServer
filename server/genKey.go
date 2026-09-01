@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"strings"
 )
@@ -52,14 +53,14 @@ func randomDigits(n int) (string, error) {
 	// Read 8 bytes (64 bits) in one syscall.
 	var buf [8]byte
 	if _, err := rand.Read(buf[:]); err != nil {
-		return "", err
+		return "", fmt.Errorf("reading random bytes: %w", err)
 	}
 
 	// Convert to uint64. crypto/rand guarantees uniform distribution,
 	// so modular reduction gives (nearly) uniform digits.
 	val := binary.BigEndian.Uint64(buf[:])
 	modulus := uint64(1)
-	for i := 0; i < n; i++ {
+	for range n {
 		modulus *= 10
 	}
 	val %= modulus
@@ -67,7 +68,7 @@ func randomDigits(n int) (string, error) {
 	// Format as zero-padded string.
 	var sb strings.Builder
 	sb.Grow(n)
-	for i := 0; i < n; i++ {
+	for range n {
 		sb.WriteByte(byte('0' + val%10))
 		val /= 10
 	}
@@ -87,7 +88,7 @@ func randomDigitsBig(n int) (string, error) {
 	for i := range n {
 		num, err := rand.Int(rand.Reader, maxDigit)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("generating random digit: %w", err)
 		}
 		digits[i] = '0' + byte(num.Int64())
 	}

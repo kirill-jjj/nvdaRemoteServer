@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -31,10 +32,14 @@ func BenchmarkJsonAdd(b *testing.B) {
 func jsonAddOldMap(data []byte, key string, value any) ([]byte, error) {
 	decode := make(map[string]any)
 	if err := json.Unmarshal(data, &decode); err != nil {
-		return data, err
+		return data, fmt.Errorf("unmarshaling JSON: %w", err)
 	}
 	decode[key] = value
-	return json.Marshal(decode)
+	out, err := json.Marshal(decode)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling JSON: %w", err)
+	}
+	return out, nil
 }
 
 // BenchmarkJsonAddOldMap measures the previous implementation for

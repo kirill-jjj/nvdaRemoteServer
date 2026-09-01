@@ -15,6 +15,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -66,19 +67,20 @@ func (s *Server) Listen() error {
 	address := s.address
 	s.Unlock()
 	if config == nil {
-		listener, err = net.Listen("tcp", address)
+		var lc net.ListenConfig
+		listener, err = lc.Listen(s.ctx, "tcp", address)
 	} else {
 		listener, err = tls.Listen("tcp", address, config)
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("listening on %s: %w", address, err)
 	}
 	s.Lock()
 	s.ctx, s.Stop = context.WithCancel(Mctx)
 	s.Add(1)
 	s.Unlock()
 	go s.accept(listener)
-	return err
+	return nil
 }
 
 func (s *Server) accept(listener net.Listener) {

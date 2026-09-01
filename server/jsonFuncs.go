@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 // JsonAdd adds a key/value pair to a JSON object message.
@@ -27,7 +28,7 @@ func JsonAdd(data []byte, key string, value any) ([]byte, error) {
 	}
 	val, err := json.Marshal(value)
 	if err != nil {
-		return data, err
+		return data, fmt.Errorf("marshaling value for key %q: %w", key, err)
 	}
 	// Pre-allocate with exact capacity to avoid growing.
 	res := make([]byte, 0, len(data)+len(val)+len(key)+5)
@@ -42,14 +43,17 @@ func JsonAdd(data []byte, key string, value any) ([]byte, error) {
 }
 
 func Encode(data any) ([]byte, error) {
-	return json.Marshal(data)
+	out, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("encoding JSON: %w", err)
+	}
+	return out, nil
 }
 
 func Decode(data []byte) (Data, error) {
-	decode := Data{}
-	decErr := json.Unmarshal(data, &decode)
-	if decErr != nil {
-		return decode, decErr
+	var decode Data
+	if err := json.Unmarshal(data, &decode); err != nil {
+		return decode, fmt.Errorf("decoding JSON message: %w", err)
 	}
 	return decode, nil
 }

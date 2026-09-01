@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"time"
@@ -46,7 +47,7 @@ func gen_cert() (*tls.Config, error) {
 	// the elliptic curve constant, which is the recommended pattern.
 	priv, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("generating ECDSA P-521 key: %w", err)
 	}
 	// SubjectKeyId and AuthorityKeyId are intentionally left empty.
 	// Since Go 1.25, CreateCertificate populates SubjectKeyId
@@ -54,7 +55,7 @@ func gen_cert() (*tls.Config, error) {
 	// than the previous SHA-1 approach.
 	caBytes, cerr := x509.CreateCertificate(rand.Reader, ca, ca, &priv.PublicKey, priv)
 	if cerr != nil {
-		return nil, cerr
+		return nil, fmt.Errorf("creating X.509 certificate: %w", cerr)
 	}
 
 	certPEM := new(bytes.Buffer)
@@ -63,12 +64,12 @@ func gen_cert() (*tls.Config, error) {
 		Bytes: caBytes,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encoding certificate PEM: %w", err)
 	}
 
 	tmpk, merr := x509.MarshalPKCS8PrivateKey(priv)
 	if merr != nil {
-		return nil, merr
+		return nil, fmt.Errorf("marshaling PKCS8 private key: %w", merr)
 	}
 
 	certPrivKeyPEM := new(bytes.Buffer)
@@ -77,12 +78,12 @@ func gen_cert() (*tls.Config, error) {
 		Bytes: tmpk,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encoding private key PEM: %w", err)
 	}
 
 	serverCert, serr := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
 	if serr != nil {
-		return nil, serr
+		return nil, fmt.Errorf("parsing X509 key pair: %w", serr)
 	}
 
 	serverTLSConf := &tls.Config{

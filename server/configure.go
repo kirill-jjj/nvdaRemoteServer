@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -230,7 +231,7 @@ func buildCertMagicConfig() (*tls.Config, error) {
 	magic := certmagic.NewDefault()
 	if err := magic.ManageSync(context.Background(), domains); err != nil {
 		Log_error("CertMagic error", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("certmagic ManageSync for %s: %w", strings.Join(domains, ","), err)
 	}
 
 	Log(LOG_INFO, "CertMagic certificate obtained")
@@ -261,7 +262,7 @@ func buildExplicitCertConfig() (*tls.Config, error) {
 	certPair, err := tls.LoadX509KeyPair(cert, key)
 	if err != nil {
 		Log_error("error loading certificate files", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("loading X509 key pair (%s, %s): %w", cert, key, err)
 	}
 	config := &tls.Config{
 		Certificates: []tls.Certificate{certPair},

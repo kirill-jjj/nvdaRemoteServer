@@ -8,7 +8,9 @@ default = 'none'
 enable = [
   'asciicheck',
   'bidichk',
+  'bodyclose',
   'contextcheck',
+  'copyloopvar',
   'decorder',
   'dogsled',
   'dupl',
@@ -16,34 +18,59 @@ enable = [
   'errcheck',
   'errname',
   'errorlint',
+  'exhaustive',
   'forcetypeassert',
   'gocheckcompilerdirectives',
   'gocyclo',
   'godot',
+  'gomoddirectives',
   'govet',
   'ineffassign',
+  'intrange',
   'misspell',
   'nakedret',
   'nilerr',
   'nilnil',
   'nolintlint',
+  'noctx',
   'prealloc',
   'predeclared',
+  'reassign',
   'staticcheck',
+  'tagalign',
+  'usetesting',
+  'testifylint',
   'unconvert',
   'unparam',
   'unused',
   'wastedassign',
-  'whitespace'
+  'whitespace',
+  'wrapcheck',
 ]
+
+[linters.settings.exhaustive]
+default-signifies-exhaustive = true
+
+
+[linters.settings.gocyclo]
+min-complexity = 20
 
 [linters.settings.staticcheck]
 checks = [
   'all',
   '-ST1001',
   '-ST1003',
-  '-ST1005'
+  '-ST1005',
 ]
+
+[linters.settings.wrapcheck]
+ignorePackageGlobs = [
+  'github.com/kirill-jjj/nvdaRemoteServer/server',
+]
+
+[linters.settings.tagalign]
+align = false
+sort = true
 
 [linters.exclusions]
 generated = 'lax'
@@ -51,12 +78,12 @@ presets = [
   'comments',
   'common-false-positives',
   'legacy',
-  'std-error-handling'
+  'std-error-handling',
 ]
 paths = [
   'third_party$',
   'builtin$',
-  'examples$'
+  'examples$',
 ]
 
 [issues]
@@ -64,7 +91,7 @@ fix = true
 
 [formatters]
 enable = [
-  'gofumpt'
+  'gofumpt',
 ]
 
 [formatters.settings]
@@ -76,5 +103,5 @@ generated = 'lax'
 paths = [
   'third_party$',
   'builtin$',
-  'examples$'
+  'examples$',
 ]
