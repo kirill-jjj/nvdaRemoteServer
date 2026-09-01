@@ -1,13 +1,13 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"net"
 	"os"
 	"strconv"
 	"strings"
-	"context"
 
 	"github.com/caddyserver/certmagic"
 )
@@ -40,9 +40,11 @@ var port int
 
 var port6 int
 
-var domain string
-var acmeEmail string
-var acmeCA string
+var (
+	domain    string
+	acmeEmail string
+	acmeCA    string
+)
 
 var includeTracebacks bool
 
@@ -63,9 +65,39 @@ func Configure() error {
 	PID_STR = strconv.Itoa(PID)
 
 	flag.CommandLine.SetOutput(os.Stdout)
+	registerFlags()
+	flag.Parse()
 
-	// The command line parameters mirror the Python NVDARemoteServer
-	// exactly, both in name and in priority over the configuration file.
+	cliSet = make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		cliSet[f.Name] = true
+	})
+
+	applyConfigFile()
+	log_init(logfile)
+	Log(LOG_INFO, "Initializing configuration.")
+
+	validateSettings()
+	handleMotd()
+
+	config, err := buildTLSConfig()
+	if err != nil {
+		return err
+	}
+
+	addrs := build_addresses()
+	Servers = make([]*Server, len(addrs))
+	for i, addr := range addrs {
+		Servers[i] = NewWithTLSConfig(addr, config)
+		Log(LOG_DEBUG, "Starting server listening on address "+addr)
+	}
+
+	return nil
+}
+
+// registerFlags registers all command line flags. The flags mirror
+// the Python NVDARemoteServer exactly, both in name and behavior.
+func registerFlags() {
 	flag.StringVar(&confFile, "configfile", DEFAULT_CONF_FILE, "Path to a configuration file in the Python NVDARemoteServer format (option=value pairs). If the file does not exist, or can't be read, default or command line values are used.")
 	flag.StringVar(&cert, "certfile", DEFAULT_CERT_FILE, "SSL certificate file to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
 	flag.StringVar(&key, "keyfile", DEFAULT_KEY_FILE, "SSL key to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
@@ -75,32 +107,21 @@ func Configure() error {
 	flag.StringVar(&pidfile, "pidfile", DEFAULT_PID_FILE, "Create a PID file when the server has successfully started.")
 	flag.IntVar(&loglevel, "loglevel", DEFAULT_LOG_LEVEL, "Choose what log level you wish to use. Any value below -1 will be ignored.")
 	flag.StringVar(&logfile, "logfile", DEFAULT_LOG_FILE, "Choose what log file you wish to use in addition to logging output to the console. If the file can't be created or open for writing, the program will fall back to console logging only.")
-
 	flag.StringVar(&motd, "motd", DEFAULT_MOTD, "Display a message of the day for the server.")
 	flag.BoolVar(&motdAlwaysDisplay, "motd_force_display", DEFAULT_MOTD_ALWAYS_DISPLAY, "Force the message of the day to be displayed upon each connection to the server, even if it hasn't changed.")
 	flag.BoolVar(&includeTracebacks, "includeTracebacks", false, "Accepted for compatibility with the Python NVDARemoteServer. This Go server has no tracebacks, so the option has no effect.")
-
 	flag.Float64Var(&timeoutSecs, "timeout", DEFAULT_TIMEOUT_SECS, "Maximum time, in seconds, a client can be connected without negotiating a TLS connection before an exception is raised. Values below 1.0 are reset to the default.")
 	flag.IntVar(&pingTime, "ping_time", DEFAULT_PING_TIME, "Interval, in seconds, at which the server pings all connected clients. Values below 30 are reset to the default.")
 	flag.IntVar(&maxMsgLen, "allowedMessageLength", DEFAULT_MAX_MSG_LEN, "Maximum allowed length, in characters, of incoming client messages. 0 means no limit. Clients sending longer messages are disconnected.")
-
 	flag.StringVar(&iface, "interface", DEFAULT_INTERFACE, "IPv4 interface the server will listen on. This does not affect IPv6 interfaces. An empty value means all IPv4 interfaces.")
 	flag.StringVar(&iface6, "interface6", DEFAULT_INTERFACE6, "IPv6 interface the server will listen on. This does not affect IPv4 interfaces. An empty value means all IPv6 interfaces.")
 	flag.IntVar(&port, "port", DEFAULT_PORT, "TCP port the server will listen on for IPv4 connections. The port must be between 1 and 65535.")
 	flag.IntVar(&port6, "port6", DEFAULT_PORT6, "TCP port the server will listen on for IPv6 connections. By default, uses the value specified in --port. The port must be between 1 and 65535.")
+}
 
-	flag.Parse()
-
-	// Record which parameters were set on the command line so they take
-	// priority over the configuration file.
-	cliSet = make(map[string]bool)
-	flag.Visit(func(f *flag.Flag) {
-		cliSet[f.Name] = true
-	})
-
-	// Read the configuration file, exactly like the Python server: the
-	// file is read if it exists, otherwise default or command line
-	// values are used.
+// applyConfigFile reads the configuration file if it exists, applying
+// values to global variables. Command line flags take priority.
+func applyConfigFile() {
 	if confFile != "" {
 		opts, err := conf_read_python(confFile)
 		if err != nil {
@@ -111,21 +132,19 @@ func Configure() error {
 	} else {
 		conf_print_missing("", nil)
 	}
+}
 
-	log_init(logfile)
-
-	Log(LOG_INFO, "Initializing configuration.")
-
+// validateSettings resets invalid configuration values to defaults,
+// mirroring the Python server's behavior of silently ignoring bad values.
+func validateSettings() {
 	if timeoutSecs < 1.0 {
 		timeoutSecs = DEFAULT_TIMEOUT_SECS
 		Log(LOG_INFO, "Timeout is less than 1.0 seconds, resetting to "+strconv.FormatFloat(DEFAULT_TIMEOUT_SECS, 'f', -1, 64))
 	}
-
 	if pingTime < 30 {
 		pingTime = DEFAULT_PING_TIME
 		Log(LOG_INFO, "Ping time is less than 30 seconds, resetting to "+strconv.Itoa(DEFAULT_PING_TIME))
 	}
-
 	if port < 1 || port > 65535 {
 		port = DEFAULT_PORT
 		Log(LOG_INFO, "Invalid port value, resetting to "+strconv.Itoa(DEFAULT_PORT))
@@ -134,7 +153,6 @@ func Configure() error {
 		port6 = port
 		Log(LOG_INFO, "Invalid port6 value, resetting to "+strconv.Itoa(port))
 	}
-
 	if loglevel < LOG_SILENT {
 		loglevel = LOG_SILENT
 		Log(LOG_INFO, "Log level is less than silent log value, resetting to "+strconv.Itoa(LOG_SILENT))
@@ -143,7 +161,11 @@ func Configure() error {
 		loglevel = LOG_PROTOCOL
 		Log(LOG_INFO, "Log level is greater than protocol log value, resetting to "+strconv.Itoa(LOG_PROTOCOL))
 	}
+}
 
+// handleMotd processes the message of the day configuration,
+// including the protocol logging warning.
+func handleMotd() {
 	if loglevel == LOG_PROTOCOL {
 		Log(LOG_INFO, "Protocol logging is enabled. The server message of the day will be set to display always, and if unset, will have a value added to it that will alert all users connecting that protocol logging is enabled.")
 		protocollogmotd := "WARNING!\nAll server information is being logged, including the protocol being used. This server is running in an insecure mode for production."
@@ -154,7 +176,6 @@ func Configure() error {
 		}
 		motdAlwaysDisplay = true
 	}
-
 	if motd != DEFAULT_MOTD {
 		logstr := "The server will display the following message of the day:\r\n" + motd
 		if motdAlwaysDisplay != DEFAULT_MOTD_ALWAYS_DISPLAY {
@@ -162,19 +183,16 @@ func Configure() error {
 		}
 		Log(LOG_DEBUG, logstr)
 	}
-
 	if motd == DEFAULT_MOTD && motdAlwaysDisplay == DEFAULT_MOTD_ALWAYS_DISPLAY {
 		Log(LOG_INFO, "The server has been told to always display a message of the day, but no message of the day has been set. The -motd_force_display parameter will be reset to false.")
 		motdAlwaysDisplay = false
 	}
+}
 
-	// Build the TLS configuration. If explicit certificate files are
-	// given they are loaded; otherwise a self-signed certificate is
-	// generated in memory, so the server works out of the box.
+// buildTLSConfig creates the TLS configuration from certificate files,
+// CertMagic ACME, or self-signed generation.
+func buildTLSConfig() (*tls.Config, error) {
 	generate := false
-	var config *tls.Config
-	var err error
-
 	if cert != DEFAULT_CERT_FILE && !fileExists(cert) {
 		Log(LOG_INFO, "The certificate file at "+cert+" does not exist.")
 		generate = true
@@ -187,73 +205,74 @@ func Configure() error {
 		generate = true
 	}
 
-	// 1. Приоритет: Автоматический сертификат CertMagic через домен
 	if domain != "" {
-		domains := strings.Split(domain, ",")
-		for i := range domains {
-			domains[i] = strings.TrimSpace(domains[i])
-		}
+		return buildCertMagicConfig()
+	}
+	if generate {
+		return buildSelfSignedConfig()
+	}
+	return buildExplicitCertConfig()
+}
 
-		Log(LOG_INFO, "Configuring CertMagic ACME for domain(s): "+strings.Join(domains, ", "))
-
-		if acmeEmail != "" {
-			certmagic.DefaultACME.Email = acmeEmail
-		}
-		certmagic.DefaultACME.Agreed = true
-		if acmeCA != "" {
-			certmagic.DefaultACME.CA = acmeCA
-		}
-
-		magic := certmagic.NewDefault()
-		err = magic.ManageSync(context.Background(), domains)
-		if err != nil {
-			Log_error("CertMagic error managing domain certificates:\r\n" + err.Error())
-			return err
-		}
-
-		config = magic.TLSConfig()
-		Log(LOG_INFO, "CertMagic successfully obtained/loaded TLS certificate.")
-	} else {
-		if generate {
-			Log(LOG_DEBUG, "Attempting to generate self-signed SSL certificate.")
-			config, err = gen_cert()
-			if err != nil {
-				Log_error("Unable to generate self-signed certificate.\r\n" + err.Error() + "\r\nUnable to start server.")
-				return err
-			}
-			Log(LOG_DEBUG, "SSL certificate generated.")
-		} else {
-			certPair, cerr := tls.LoadX509KeyPair(cert, key)
-			if cerr != nil {
-				Log_error("Error loading certificate and key files.\r\n" + cerr.Error() + "\r\nUnable to start server.")
-				return cerr
-			}
-			config = &tls.Config{
-				Certificates: []tls.Certificate{certPair},
-			}
-		}
+// buildCertMagicConfig creates a TLS config via CertMagic ACME.
+func buildCertMagicConfig() (*tls.Config, error) {
+	domains := strings.Split(domain, ",")
+	for i := range domains {
+		domains[i] = strings.TrimSpace(domains[i])
 	}
 
+	Log(LOG_INFO, "Configuring CertMagic ACME for domain(s): "+strings.Join(domains, ", "))
+
+	if acmeEmail != "" {
+		certmagic.DefaultACME.Email = acmeEmail
+	}
+	certmagic.DefaultACME.Agreed = true
+	if acmeCA != "" {
+		certmagic.DefaultACME.CA = acmeCA
+	}
+
+	magic := certmagic.NewDefault()
+	if err := magic.ManageSync(context.Background(), domains); err != nil {
+		Log_error("CertMagic error managing domain certificates:\r\n" + err.Error())
+		return nil, err
+	}
+
+	Log(LOG_INFO, "CertMagic successfully obtained/loaded TLS certificate.")
+	config := magic.TLSConfig()
 	// TLS 1.2 is the minimum: NVDA Remote addon (Python) bundled with
 	// NVDA uses ssl.SSLContext() which defaults to PROTOCOL_TLS. On
 	// Python 3.7-3.9 (used by NVDA 2019.3-2023.1), TLS 1.3 is not
 	// available, so requiring TLS 1.3 breaks compatibility.
-	// TLS 1.2 is still secure for this use case (relay server).
 	config.MinVersion = tls.VersionTLS12
+	return config, nil
+}
 
-	// Build the listen addresses from the IPv4 and IPv6 interface and
-	// port options, like the Python server does. When both interfaces
-	// and both ports are at their defaults, a single dual-stack
-	// wildcard address is used.
-	addrs := build_addresses()
-
-	Servers = make([]*Server, len(addrs))
-	for i, addr := range addrs {
-		Servers[i] = NewWithTLSConfig(addr, config)
-		Log(LOG_DEBUG, "Starting server listening on address "+addr)
+// buildSelfSignedConfig generates a self-signed certificate in memory.
+func buildSelfSignedConfig() (*tls.Config, error) {
+	Log(LOG_DEBUG, "Attempting to generate self-signed SSL certificate.")
+	config, err := gen_cert()
+	if err != nil {
+		Log_error("Unable to generate self-signed certificate.\r\n" + err.Error() + "\r\nUnable to start server.")
+		return nil, err
 	}
+	Log(LOG_DEBUG, "SSL certificate generated.")
+	config.MinVersion = tls.VersionTLS12
+	return config, nil
+}
 
-	return nil
+// buildExplicitCertConfig loads certificate files specified by the user.
+func buildExplicitCertConfig() (*tls.Config, error) {
+	certPair, err := tls.LoadX509KeyPair(cert, key)
+	if err != nil {
+		Log_error("Error loading certificate and key files.\r\n" + err.Error() + "\r\nUnable to start server.")
+		return nil, err
+	}
+	config := &tls.Config{
+		Certificates: []tls.Certificate{certPair},
+		// TLS 1.2 minimum for NVDA Remote addon compatibility.
+		MinVersion: tls.VersionTLS12,
+	}
+	return config, nil
 }
 
 // build_addresses returns the listen addresses for the configured

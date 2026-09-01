@@ -69,7 +69,7 @@ enable = [
 
 [formatters.settings]
 [formatters.settings.gofumpt]
-extra-rules = true
+extra.group-params = true
 
 [formatters.exclusions]
 generated = 'lax'

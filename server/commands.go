@@ -33,18 +33,16 @@ func cmd_exec(c *Client, db *Data) {
 }
 
 // sendError encodes an error response and sends it to a client.
-// Returns true if the message was sent successfully.
-func sendError(c *Client, errType string) bool {
+func sendError(c *Client, errType string) {
 	enc, encerr := Encode(Data{
 		Type:  "error",
 		Error: errType,
 	})
 	if encerr != nil {
 		Log(LOG_DEBUG, "JSON encoding error for client "+strconv.Itoa(c.GetID())+": "+encerr.Error())
-		return false
+		return
 	}
 	c.Send(enc)
-	return true
 }
 
 // sendJSON encodes arbitrary data and sends it to a client.
