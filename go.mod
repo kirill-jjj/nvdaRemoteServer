@@ -1,6 +1,6 @@
 module github.com/kirill-jjj/nvdaRemoteServer
 
-go 1.25.0
+go 1.27.0
 
 require github.com/caddyserver/certmagic v0.25.4
 
