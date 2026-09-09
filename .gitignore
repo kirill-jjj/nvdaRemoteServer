@@ -1,3 +1,7 @@
 dist/
 nvdaRemoteServer
 *.test
+.freebuff/
+.vscode/
+.idea/
+.DS_Store
