@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	. "github.com/kirill-jjj/nvdaRemoteServer/server"
+	"github.com/kirill-jjj/nvdaRemoteServer/server"
 )
 
 var Version string = "development"
@@ -16,37 +16,37 @@ func main() {
 	Version = strings.TrimPrefix(versionSetter(), "v")
 	args()
 
-	defer Log_close()
-	err := Configure()
+	defer server.Log_close()
+	err := server.Configure()
 	if err != nil {
-		Log_close()
+		server.Log_close()
 		os.Exit(1)
 	}
-	num := Start()
+	num := server.Start()
 	if num == 0 {
-		Log_error("No servers started. Shutting down.")
-		Log_close()
+		server.Log_error("No servers started. Shutting down.")
+		server.Log_close()
 		os.Exit(1)
 	}
-	defer CatchPanic()
-	PidfileSet()
-	Log(LOG_INFO, "server started", "pid", PID, "version", Version)
+	defer server.CatchPanic()
+	server.PidfileSet()
+	server.Log(server.LOG_INFO, "server started", "pid", server.PID, "version", Version)
 	wait()
-	if Mctx.Err() != nil {
-		Log(LOG_INFO, "Shutdown signal received, stopping servers.")
+	if server.Mctx.Err() != nil {
+		server.Log(server.LOG_INFO, "Shutdown signal received, stopping servers.")
 	}
-	Shutdown()
-	Log(LOG_INFO, "Server shutdown complete.")
+	server.Shutdown()
+	server.Log(server.LOG_INFO, "Server shutdown complete.")
 }
 
 func wait() {
 	var wg sync.WaitGroup
-	for _, s := range Servers {
+	for _, s := range server.Servers {
 		if s == nil {
 			continue
 		}
 		wg.Add(1)
-		go func(sv *Server) {
+		go func(sv *server.Server) {
 			sv.Wait()
 			wg.Done()
 		}(s)

@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	. "github.com/kirill-jjj/nvdaRemoteServer/server"
+	"github.com/kirill-jjj/nvdaRemoteServer/server"
 )
 
 // findPidFile returns the PID file path from the given command line
@@ -25,7 +25,7 @@ func findPidFile(args []string) string {
 			return strings.TrimPrefix(a, "-pidfile=")
 		}
 	}
-	return DEFAULT_PID_FILE
+	return server.DEFAULT_PID_FILE
 }
 
 func readPid(path string) (int, error) {
