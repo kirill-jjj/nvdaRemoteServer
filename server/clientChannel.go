@@ -54,8 +54,8 @@ func (c *ClientChannel) Add(client *Client, password string) {
 	c.Lock()
 	auth := false
 	client.SetAuthorized(false)
-	id := client.GetID()
-	connection := client.GetConnectionType()
+	id := client.ID()
+	connection := client.ConnectionType()
 	if c.locked {
 		if password == c.password && c.password != "" {
 			client.SetAuthorized(true)
@@ -98,7 +98,7 @@ func (c *ClientChannel) Add(client *Client, password string) {
 			if cid == id {
 				continue
 			}
-			ctype = cc.GetConnectionType()
+			ctype = cc.ConnectionType()
 			scdb.UserIds = append(scdb.UserIds, cid)
 			scdb.Clients = append(scdb.Clients, ClientData{
 				ID:             cid,
@@ -136,7 +136,7 @@ func (c *ClientChannel) Add(client *Client, password string) {
 		c.sendToClient(client, mdb)
 	}
 
-	Log(LOG_CHANNEL, "client joined channel",
+	Log(LogChannel, "client joined channel",
 		"id", id,
 		"channel", c.name,
 		"connection_type", connection,
@@ -147,8 +147,8 @@ func (c *ClientChannel) Add(client *Client, password string) {
 func (c *ClientChannel) Remove(client *Client) {
 	defer c.Unlock()
 	c.Lock()
-	id := client.GetID()
-	connection := client.GetConnectionType()
+	id := client.ID()
+	connection := client.ConnectionType()
 	delete(c.ClientsAll, id)
 	client.ClearChannel()
 
@@ -163,7 +163,7 @@ func (c *ClientChannel) Remove(client *Client) {
 		},
 	}), client)
 
-	Log(LOG_CHANNEL, "client left channel",
+	Log(LogChannel, "client left channel",
 		"id", id,
 		"channel", c.name,
 	)
@@ -272,12 +272,12 @@ func (c *ClientChannel) sendToClient(client *Client, data Data) {
 //	if encerr == nil {
 //	    ...
 //	} else {
-//	    Log(LOG_DEBUG, "Error encoding JSON...")
+//	    Log(LogDebug, "Error encoding JSON...")
 //	}
 func (c *ClientChannel) mustEncode(data Data) []byte {
 	enc, err := Encode(data)
 	if err != nil {
-		Log(LOG_DEBUG, "error encoding JSON", "channel", c.name, "error", err)
+		Log(LogDebug, "error encoding JSON", "channel", c.name, "error", err)
 		return nil
 	}
 	return enc

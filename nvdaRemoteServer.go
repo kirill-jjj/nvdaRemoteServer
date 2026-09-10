@@ -16,27 +16,27 @@ func main() {
 	Version = strings.TrimPrefix(versionSetter(), "v")
 	args()
 
-	defer server.Log_close()
+	defer server.LogClose()
 	err := server.Configure()
 	if err != nil {
-		server.Log_close()
+		server.LogClose()
 		os.Exit(1)
 	}
 	num := server.Start()
 	if num == 0 {
-		server.Log_error("No servers started. Shutting down.")
-		server.Log_close()
+		server.LogError("No servers started. Shutting down.")
+		server.LogClose()
 		os.Exit(1)
 	}
 	defer server.CatchPanic()
 	server.PidfileSet()
-	server.Log(server.LOG_INFO, "server started", "pid", server.PID, "version", Version)
+	server.Log(server.LogInfo, "server started", "pid", server.PID, "version", Version)
 	wait()
 	if server.Mctx.Err() != nil {
-		server.Log(server.LOG_INFO, "Shutdown signal received, stopping servers.")
+		server.Log(server.LogInfo, "Shutdown signal received, stopping servers.")
 	}
 	server.Shutdown()
-	server.Log(server.LOG_INFO, "Server shutdown complete.")
+	server.Log(server.LogInfo, "Server shutdown complete.")
 }
 
 func wait() {

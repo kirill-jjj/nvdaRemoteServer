@@ -18,7 +18,7 @@ var (
 	not_connected_msg = []byte(`{"type":"nvda_not_connected"}`)
 )
 
-const write_sec int = 8
+const writeSec int = 8
 
 // dropKickInterval is how many dropped messages a client may accumulate
 // before the server concludes it is hopelessly behind and disconnects
@@ -58,13 +58,13 @@ func (c *Client) SetChannel(clientChannel *ClientChannel) {
 	c.c = clientChannel
 }
 
-func (c *Client) GetChannel() *ClientChannel {
+func (c *Client) Channel() *ClientChannel {
 	defer c.RUnlock()
 	c.RLock()
 	return c.c
 }
 
-func (c *Client) GetID() int {
+func (c *Client) ID() int {
 	defer c.RUnlock()
 	c.RLock()
 	return c.id
@@ -76,19 +76,19 @@ func (c *Client) SetID(id int) {
 	c.id = id
 }
 
-func (c *Client) GetAuthorized() bool {
+func (c *Client) Authorized() bool {
 	defer c.RUnlock()
 	c.RLock()
 	return c.auth
 }
 
-func (c *Client) GetIP() string {
+func (c *Client) IP() string {
 	defer c.RUnlock()
 	c.RLock()
 	return c.ip
 }
 
-func (c *Client) GetConnectionType() string {
+func (c *Client) ConnectionType() string {
 	defer c.RUnlock()
 	c.RLock()
 	return c.connectionType
@@ -106,7 +106,7 @@ func (c *Client) SetConnectionType(ctype string) {
 	c.connectionType = ctype
 }
 
-func (c *Client) GetVersion() int {
+func (c *Client) Version() int {
 	defer c.RUnlock()
 	c.RLock()
 	return c.version
@@ -120,7 +120,7 @@ func (c *Client) SetVersion(version int) {
 
 // logClientError logs a client error with structured data.
 func (c *Client) logClientError(context string, err error) {
-	Log(LOG_DEBUG, "client error", "context", context, "id", c.id, "error", err)
+	Log(LogDebug, "client error", "context", context, "id", c.id, "error", err)
 }
 
 // Handle client data.
@@ -170,8 +170,8 @@ func (c *Client) listen() {
 					c.Close()
 					return
 				}
-				Log(LOG_PROTOCOL, "data sent to client", "id", idstr, "data", string(b))
-				_ = c.conn.SetWriteDeadline(time.Now().Add(time.Duration(write_sec) * time.Second))
+				Log(LogProtocol, "data sent to client", "id", idstr, "data", string(b))
+				_ = c.conn.SetWriteDeadline(time.Now().Add(time.Duration(writeSec) * time.Second))
 				if _, err := bw.Write(b); err != nil {
 					c.logClientError("sending message", err)
 					c.Close()
@@ -272,11 +272,11 @@ func (c *Client) listen() {
 			return
 		}
 		if len(message) == 1 {
-			Log(LOG_DEBUG, "received empty message from client", "id", idstr)
+			Log(LogDebug, "received empty message from client", "id", idstr)
 			continue
 		}
 		if maxMsgLen > 0 && len(message)-1 > maxMsgLen {
-			Log(LOG_DEBUG, "received too much data from client, disconnecting", "id", idstr)
+			Log(LogDebug, "received too much data from client, disconnecting", "id", idstr)
 			c.Close()
 			return
 		}
@@ -285,7 +285,7 @@ func (c *Client) listen() {
 		// conversion allocates a new string on every call, while a
 		// string literal is a compile-time constant.
 		message = bytes.TrimRight(message, "\n")
-		Log(LOG_PROTOCOL, "data received from client", "id", idstr, "data", string(message))
+		Log(LogProtocol, "data received from client", "id", idstr, "data", string(message))
 		MessageReceived(c, message)
 	}
 }
@@ -352,11 +352,11 @@ func (c *Client) Send(b []byte) {
 		// and remember it: repeated overflow kills the client.
 		n := c.dropped.Add(1)
 		if n == 1 {
-			Log(LOG_DEBUG, "send queue full, dropping messages", "id", c.GetID())
+			Log(LogDebug, "send queue full, dropping messages", "id", c.ID())
 		}
 		if n%dropKickInterval == 0 {
-			Log_error("client queue hopelessly behind, disconnecting",
-				"id", c.GetID(), "dropped_total", n)
+			LogError("client queue hopelessly behind, disconnecting",
+				"id", c.ID(), "dropped_total", n)
 			c.Close()
 		}
 	}

@@ -28,7 +28,7 @@ func fileExists(file string) bool {
 }
 
 func cleanPath(p string) string {
-	p = strings.ReplaceAll(p, PS+PS, PS)
+	p = strings.ReplaceAll(p, pathSeparator+pathSeparator, pathSeparator)
 	return p
 }
 

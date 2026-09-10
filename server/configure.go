@@ -53,7 +53,7 @@ var Servers []*Server
 
 var (
 	PID     int
-	PID_STR string
+	pidStr  string
 	pidfile string
 )
 
@@ -63,7 +63,7 @@ var cliSet map[string]bool
 
 func Configure() error {
 	PID = os.Getpid()
-	PID_STR = strconv.Itoa(PID)
+	pidStr = strconv.Itoa(PID)
 
 	flag.CommandLine.SetOutput(os.Stdout)
 	registerFlags()
@@ -76,7 +76,7 @@ func Configure() error {
 
 	applyConfigFile()
 	log_init(logfile)
-	Log(LOG_INFO, "initializing configuration")
+	Log(LogInfo, "initializing configuration")
 
 	validateSettings()
 	handleMotd()
@@ -90,7 +90,7 @@ func Configure() error {
 	Servers = make([]*Server, len(addrs))
 	for i, addr := range addrs {
 		Servers[i] = NewWithTLSConfig(addr, config)
-		Log(LOG_DEBUG, "starting server on address", "address", addr)
+		Log(LogDebug, "starting server on address", "address", addr)
 	}
 
 	return nil
@@ -99,25 +99,25 @@ func Configure() error {
 // registerFlags registers all command line flags. The flags mirror
 // the Python NVDARemoteServer exactly, both in name and behavior.
 func registerFlags() {
-	flag.StringVar(&confFile, "configfile", DEFAULT_CONF_FILE, "Path to a configuration file in the Python NVDARemoteServer format (option=value pairs). If the file does not exist, or can't be read, default or command line values are used.")
-	flag.StringVar(&cert, "certfile", DEFAULT_CERT_FILE, "SSL certificate file to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
-	flag.StringVar(&key, "keyfile", DEFAULT_KEY_FILE, "SSL key to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
-	flag.StringVar(&domain, "domain", DEFAULT_DOMAIN, "Domain name for automatic TLS certificate management via Let's Encrypt / CertMagic.")
-	flag.StringVar(&acmeEmail, "acme_email", DEFAULT_ACME_EMAIL, "Email address for ACME registration.")
-	flag.StringVar(&acmeCA, "acme_ca", DEFAULT_ACME_CA, "Custom ACME CA URL (optional).")
-	flag.StringVar(&pidfile, "pidfile", DEFAULT_PID_FILE, "Create a PID file when the server has successfully started.")
-	flag.IntVar(&loglevel, "loglevel", DEFAULT_LOG_LEVEL, "Choose what log level you wish to use. Any value below -1 will be ignored.")
-	flag.StringVar(&logfile, "logfile", DEFAULT_LOG_FILE, "Choose what log file you wish to use in addition to logging output to the console. If the file can't be created or open for writing, the program will fall back to console logging only.")
-	flag.StringVar(&motd, "motd", DEFAULT_MOTD, "Display a message of the day for the server.")
-	flag.BoolVar(&motdAlwaysDisplay, "motd_force_display", DEFAULT_MOTD_ALWAYS_DISPLAY, "Force the message of the day to be displayed upon each connection to the server, even if it hasn't changed.")
+	flag.StringVar(&confFile, "configfile", defaultConfFile, "Path to a configuration file in the Python NVDARemoteServer format (option=value pairs). If the file does not exist, or can't be read, default or command line values are used.")
+	flag.StringVar(&cert, "certfile", defaultCertFile, "SSL certificate file to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
+	flag.StringVar(&key, "keyfile", defaultKeyFile, "SSL key to use for the server's TLS connection, must point to an existing file. If this is empty, the server will automatically generate its own self-signed certificate.")
+	flag.StringVar(&domain, "domain", defaultDomain, "Domain name for automatic TLS certificate management via Let's Encrypt / CertMagic.")
+	flag.StringVar(&acmeEmail, "acme_email", defaultAcmeEmail, "Email address for ACME registration.")
+	flag.StringVar(&acmeCA, "acme_ca", defaultAcmeCa, "Custom ACME CA URL (optional).")
+	flag.StringVar(&pidfile, "pidfile", DefaultPIDFile, "Create a PID file when the server has successfully started.")
+	flag.IntVar(&loglevel, "loglevel", defaultLogLevel, "Choose what log level you wish to use. Any value below -1 will be ignored.")
+	flag.StringVar(&logfile, "logfile", defaultLogFile, "Choose what log file you wish to use in addition to logging output to the console. If the file can't be created or open for writing, the program will fall back to console logging only.")
+	flag.StringVar(&motd, "motd", defaultMotd, "Display a message of the day for the server.")
+	flag.BoolVar(&motdAlwaysDisplay, "motd_force_display", defaultMotdAlwaysDisplay, "Force the message of the day to be displayed upon each connection to the server, even if it hasn't changed.")
 	flag.BoolVar(&includeTracebacks, "includeTracebacks", false, "Accepted for compatibility with the Python NVDARemoteServer. This Go server has no tracebacks, so the option has no effect.")
-	flag.Float64Var(&timeoutSecs, "timeout", DEFAULT_TIMEOUT_SECS, "Maximum time, in seconds, a client can be connected without negotiating a TLS connection before an exception is raised. Values below 1.0 are reset to the default.")
-	flag.IntVar(&pingTime, "ping_time", DEFAULT_PING_TIME, "Interval, in seconds, at which the server pings all connected clients. Values below 30 are reset to the default.")
-	flag.IntVar(&maxMsgLen, "allowedMessageLength", DEFAULT_MAX_MSG_LEN, "Maximum allowed length, in characters, of incoming client messages. 0 means no limit. Clients sending longer messages are disconnected.")
-	flag.StringVar(&iface, "interface", DEFAULT_INTERFACE, "IPv4 interface the server will listen on. This does not affect IPv6 interfaces. An empty value means all IPv4 interfaces.")
-	flag.StringVar(&iface6, "interface6", DEFAULT_INTERFACE6, "IPv6 interface the server will listen on. This does not affect IPv4 interfaces. An empty value means all IPv6 interfaces.")
-	flag.IntVar(&port, "port", DEFAULT_PORT, "TCP port the server will listen on for IPv4 connections. The port must be between 1 and 65535.")
-	flag.IntVar(&port6, "port6", DEFAULT_PORT6, "TCP port the server will listen on for IPv6 connections. By default, uses the value specified in --port. The port must be between 1 and 65535.")
+	flag.Float64Var(&timeoutSecs, "timeout", defaultTimeoutSecs, "Maximum time, in seconds, a client can be connected without negotiating a TLS connection before an exception is raised. Values below 1.0 are reset to the default.")
+	flag.IntVar(&pingTime, "ping_time", defaultPingTime, "Interval, in seconds, at which the server pings all connected clients. Values below 30 are reset to the default.")
+	flag.IntVar(&maxMsgLen, "allowedMessageLength", defaultMaxMsgLen, "Maximum allowed length, in characters, of incoming client messages. 0 means no limit. Clients sending longer messages are disconnected.")
+	flag.StringVar(&iface, "interface", defaultInterface, "IPv4 interface the server will listen on. This does not affect IPv6 interfaces. An empty value means all IPv4 interfaces.")
+	flag.StringVar(&iface6, "interface6", defaultInterface6, "IPv6 interface the server will listen on. This does not affect IPv4 interfaces. An empty value means all IPv6 interfaces.")
+	flag.IntVar(&port, "port", defaultPort, "TCP port the server will listen on for IPv4 connections. The port must be between 1 and 65535.")
+	flag.IntVar(&port6, "port6", defaultPort6, "TCP port the server will listen on for IPv6 connections. By default, uses the value specified in --port. The port must be between 1 and 65535.")
 }
 
 // applyConfigFile reads the configuration file if it exists, applying
@@ -139,36 +139,36 @@ func applyConfigFile() {
 // mirroring the Python server's behavior of silently ignoring bad values.
 func validateSettings() {
 	if timeoutSecs < 1.0 {
-		timeoutSecs = DEFAULT_TIMEOUT_SECS
-		Log(LOG_INFO, "timeout reset to default", "value", DEFAULT_TIMEOUT_SECS)
+		timeoutSecs = defaultTimeoutSecs
+		Log(LogInfo, "timeout reset to default", "value", defaultTimeoutSecs)
 	}
 	if pingTime < 30 {
-		pingTime = DEFAULT_PING_TIME
-		Log(LOG_INFO, "ping_time reset to default", "value", DEFAULT_PING_TIME)
+		pingTime = defaultPingTime
+		Log(LogInfo, "ping_time reset to default", "value", defaultPingTime)
 	}
 	if port < 1 || port > 65535 {
-		port = DEFAULT_PORT
-		Log(LOG_INFO, "port reset to default", "value", DEFAULT_PORT)
+		port = defaultPort
+		Log(LogInfo, "port reset to default", "value", defaultPort)
 	}
 	if port6 < 1 || port6 > 65535 {
 		port6 = port
-		Log(LOG_INFO, "port6 reset to port value", "value", port)
+		Log(LogInfo, "port6 reset to port value", "value", port)
 	}
-	if loglevel < LOG_SILENT {
-		loglevel = LOG_SILENT
-		Log(LOG_INFO, "loglevel reset to silent", "value", LOG_SILENT)
+	if loglevel < LogSilent {
+		loglevel = LogSilent
+		Log(LogInfo, "loglevel reset to silent", "value", LogSilent)
 	}
-	if loglevel > LOG_PROTOCOL {
-		loglevel = LOG_PROTOCOL
-		Log(LOG_INFO, "loglevel reset to protocol", "value", LOG_PROTOCOL)
+	if loglevel > LogProtocol {
+		loglevel = LogProtocol
+		Log(LogInfo, "loglevel reset to protocol", "value", LogProtocol)
 	}
 }
 
 // handleMotd processes the message of the day configuration,
 // including the protocol logging warning.
 func handleMotd() {
-	if loglevel == LOG_PROTOCOL {
-		Log(LOG_INFO, "protocol logging enabled")
+	if loglevel == LogProtocol {
+		Log(LogInfo, "protocol logging enabled")
 		protocollogmotd := "WARNING!\nAll server information is being logged, including the protocol being used. This server is running in an insecure mode for production."
 		if motd == "" {
 			motd = protocollogmotd
@@ -177,11 +177,11 @@ func handleMotd() {
 		}
 		motdAlwaysDisplay = true
 	}
-	if motd != DEFAULT_MOTD {
-		Log(LOG_DEBUG, "MOTD configured", "motd", motd, "force_display", motdAlwaysDisplay)
+	if motd != defaultMotd {
+		Log(LogDebug, "MOTD configured", "motd", motd, "force_display", motdAlwaysDisplay)
 	}
-	if motd == DEFAULT_MOTD && motdAlwaysDisplay == DEFAULT_MOTD_ALWAYS_DISPLAY {
-		Log(LOG_INFO, "MOTD force_display reset to false (no MOTD set)")
+	if motd == defaultMotd && motdAlwaysDisplay == defaultMotdAlwaysDisplay {
+		Log(LogInfo, "MOTD force_display reset to false (no MOTD set)")
 		motdAlwaysDisplay = false
 	}
 }
@@ -190,15 +190,15 @@ func handleMotd() {
 // CertMagic ACME, or self-signed generation.
 func buildTLSConfig() (*tls.Config, error) {
 	generate := false
-	if cert != DEFAULT_CERT_FILE && !fileExists(cert) {
-		Log(LOG_INFO, "certificate file does not exist", "file", cert)
+	if cert != defaultCertFile && !fileExists(cert) {
+		Log(LogInfo, "certificate file does not exist", "file", cert)
 		generate = true
 	}
-	if key != DEFAULT_KEY_FILE && !fileExists(key) {
-		Log(LOG_INFO, "key file does not exist", "file", key)
+	if key != defaultKeyFile && !fileExists(key) {
+		Log(LogInfo, "key file does not exist", "file", key)
 		generate = true
 	}
-	if cert == DEFAULT_CERT_FILE || key == DEFAULT_KEY_FILE {
+	if cert == defaultCertFile || key == defaultKeyFile {
 		generate = true
 	}
 
@@ -218,7 +218,7 @@ func buildCertMagicConfig() (*tls.Config, error) {
 		domains[i] = strings.TrimSpace(domains[i])
 	}
 
-	Log(LOG_INFO, "configuring CertMagic ACME", "domains", strings.Join(domains, ", "))
+	Log(LogInfo, "configuring CertMagic ACME", "domains", strings.Join(domains, ", "))
 
 	if acmeEmail != "" {
 		certmagic.DefaultACME.Email = acmeEmail
@@ -230,11 +230,11 @@ func buildCertMagicConfig() (*tls.Config, error) {
 
 	magic := certmagic.NewDefault()
 	if err := magic.ManageSync(context.Background(), domains); err != nil {
-		Log_error("CertMagic error", "error", err)
+		LogError("CertMagic error", "error", err)
 		return nil, fmt.Errorf("certmagic ManageSync for %s: %w", strings.Join(domains, ","), err)
 	}
 
-	Log(LOG_INFO, "CertMagic certificate obtained")
+	Log(LogInfo, "CertMagic certificate obtained")
 	config := magic.TLSConfig()
 	// TLS 1.2 is the minimum: NVDA Remote addon (Python) bundled with
 	// NVDA uses ssl.SSLContext() which defaults to PROTOCOL_TLS. On
@@ -246,13 +246,13 @@ func buildCertMagicConfig() (*tls.Config, error) {
 
 // buildSelfSignedConfig generates a self-signed certificate in memory.
 func buildSelfSignedConfig() (*tls.Config, error) {
-	Log(LOG_DEBUG, "generating self-signed certificate")
+	Log(LogDebug, "generating self-signed certificate")
 	config, err := gen_cert()
 	if err != nil {
-		Log_error("unable to generate self-signed certificate", "error", err)
+		LogError("unable to generate self-signed certificate", "error", err)
 		return nil, err
 	}
-	Log(LOG_DEBUG, "self-signed certificate generated")
+	Log(LogDebug, "self-signed certificate generated")
 	config.MinVersion = tls.VersionTLS12
 	return config, nil
 }
@@ -261,7 +261,7 @@ func buildSelfSignedConfig() (*tls.Config, error) {
 func buildExplicitCertConfig() (*tls.Config, error) {
 	certPair, err := tls.LoadX509KeyPair(cert, key)
 	if err != nil {
-		Log_error("error loading certificate files", "error", err)
+		LogError("error loading certificate files", "error", err)
 		return nil, fmt.Errorf("loading X509 key pair (%s, %s): %w", cert, key, err)
 	}
 	config := &tls.Config{
@@ -293,7 +293,7 @@ func Start() int {
 	for i := range Servers {
 		err = Servers[i].Listen()
 		if err != nil {
-			Log_error("unable to listen on address", "address", Servers[i].address, "error", err)
+			LogError("unable to listen on address", "address", Servers[i].address, "error", err)
 			Servers[i] = nil
 			continue
 		}
@@ -304,7 +304,7 @@ func Start() int {
 		return num
 	}
 
-	Log(LOG_DEBUG, "servers started", "count", num)
+	Log(LogDebug, "servers started", "count", num)
 	return num
 }
 

@@ -5,74 +5,75 @@ import (
 	"runtime"
 )
 
-var PS string = string(os.PathSeparator)
+// pathSeparator is the OS path separator, exposed for file-path
+// helpers in this package.
+var pathSeparator = string(os.PathSeparator)
 
-// Configuration file defaults mirror the Python NVDARemoteServer.
+// Configuration defaults mirror the Python NVDARemoteServer.
 var (
-	DEFAULT_CONF_FILE string = ""
-	DEFAULT_CONF_NAME string = "NVDARemoteServer.conf"
+	defaultConfFile string = ""
 )
 
 var (
-	DEFAULT_CERT_FILE string = ""
-	DEFAULT_KEY_FILE  string = ""
+	defaultCertFile string = ""
+	defaultKeyFile  string = ""
 )
 
 var (
-	DEFAULT_DOMAIN     string = ""
-	DEFAULT_ACME_EMAIL string = ""
-	DEFAULT_ACME_CA    string = ""
+	defaultDomain    string = ""
+	defaultAcmeEmail string = ""
+	defaultAcmeCa    string = ""
 )
 
-var DEFAULT_LOG_FILE string = ""
+var defaultLogFile string = ""
 
 // Log levels use iota so adding a new level requires zero value changes.
 const (
-	LOG_SILENT     = iota - 1 // -1
-	LOG_INFO                  //  0
-	LOG_CONNECTION            //  1
-	LOG_CHANNEL               //  2
-	LOG_DEBUG                 //  3
-	LOG_PROTOCOL              //  4
+	LogSilent     = iota - 1 // -1
+	LogInfo                  //  0
+	LogConnection            //  1
+	LogChannel               //  2
+	LogDebug                 //  3
+	LogProtocol              //  4
 )
 
-var DEFAULT_LOG_LEVEL int = LOG_CHANNEL
+var defaultLogLevel int = LogChannel
 
 var (
-	DEFAULT_MOTD                string = ""
-	DEFAULT_MOTD_ALWAYS_DISPLAY bool   = false
+	defaultMotd              string = ""
+	defaultMotdAlwaysDisplay bool   = false
 )
 
-var DEFAULT_PID_FILE string = ""
+var DefaultPIDFile string = ""
 
 // Options ported from the Python server: TLS handshake timeout, client
 // ping interval (300 seconds, as in Python), maximum incoming message
 // length and separate IPv4/IPv6 interfaces and ports.
 var (
-	DEFAULT_TIMEOUT_SECS float64 = 5.0
-	DEFAULT_PING_TIME    int     = 300
-	DEFAULT_MAX_MSG_LEN  int     = 0
+	defaultTimeoutSecs float64 = 5.0
+	defaultPingTime    int     = 300
+	defaultMaxMsgLen   int     = 0
 )
 
 var (
-	DEFAULT_INTERFACE  string = ""
-	DEFAULT_INTERFACE6 string = ""
-	DEFAULT_PORT       int    = 6837
-	DEFAULT_PORT6      int    = 6837
+	defaultInterface  string = ""
+	defaultInterface6 string = ""
+	defaultPort       int    = 6837
+	defaultPort6      int    = 6837
 )
 
 func init() {
 	switch runtime.GOOS {
 	case "linux":
-		DEFAULT_CONF_FILE = "/etc/NVDARemoteServer.conf"
-		DEFAULT_CERT_FILE = "/usr/share/NVDARemoteServer/server.pem"
-		DEFAULT_LOG_FILE = "/var/log/NVDARemoteServer/NVDARemoteServer.log"
-		DEFAULT_PID_FILE = "/run/NVDARemoteServer/NVDARemoteServer.pid"
+		defaultConfFile = "/etc/NVDARemoteServer.conf"
+		defaultCertFile = "/usr/share/NVDARemoteServer/server.pem"
+		defaultLogFile = "/var/log/NVDARemoteServer/NVDARemoteServer.log"
+		DefaultPIDFile = "/run/NVDARemoteServer/NVDARemoteServer.pid"
 	case "darwin":
-		DEFAULT_CONF_FILE = "/etc/NVDARemoteServer.conf"
-		DEFAULT_CERT_FILE = "/usr/share/NVDARemoteServer/server.pem"
-		DEFAULT_LOG_FILE = "/var/log/NVDARemoteServer/NVDARemoteServer.log"
-		DEFAULT_PID_FILE = "/var/run/NVDARemoteServer.pid"
+		defaultConfFile = "/etc/NVDARemoteServer.conf"
+		defaultCertFile = "/usr/share/NVDARemoteServer/server.pem"
+		defaultLogFile = "/var/log/NVDARemoteServer/NVDARemoteServer.log"
+		DefaultPIDFile = "/var/run/NVDARemoteServer.pid"
 	default:
 		// Windows and other systems: empty defaults, like Python.
 	}

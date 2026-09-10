@@ -17,11 +17,11 @@ func cmd_add(cmd string, cfunc func(*Client, *Data)) {
 func cmd_exec(c *Client, db *Data) {
 	cmd := db.Type
 	if cmd == "" {
-		Log(LOG_DEBUG, "received message without type, ignoring", "id", c.GetID())
+		Log(LogDebug, "received message without type, ignoring", "id", c.ID())
 		return
 	}
 	if !cmd_exists(cmd) {
-		Log(LOG_DEBUG, "unknown command", "command", cmd, "id", c.GetID())
+		Log(LogDebug, "unknown command", "command", cmd, "id", c.ID())
 		return
 	}
 	command[cmd](c, db)
@@ -34,7 +34,7 @@ func sendError(c *Client, errType string) {
 		Error: errType,
 	})
 	if encerr != nil {
-		Log(LOG_DEBUG, "JSON encoding error", "id", c.GetID(), "error", encerr)
+		Log(LogDebug, "JSON encoding error", "id", c.ID(), "error", encerr)
 		return
 	}
 	c.Send(enc)
@@ -44,7 +44,7 @@ func sendError(c *Client, errType string) {
 func sendJSON(c *Client, data Data) bool {
 	enc, encerr := Encode(data)
 	if encerr != nil {
-		Log(LOG_DEBUG, "JSON encoding error", "id", c.GetID(), "error", encerr)
+		Log(LogDebug, "JSON encoding error", "id", c.ID(), "error", encerr)
 		return false
 	}
 	c.Send(enc)
@@ -53,7 +53,7 @@ func sendJSON(c *Client, data Data) bool {
 
 func init() {
 	cmd_add("join", func(c *Client, db *Data) {
-		if c.GetChannel() != nil {
+		if c.Channel() != nil {
 			sendError(c, "already_joined")
 			return
 		}
@@ -80,17 +80,17 @@ func init() {
 	cmd_add("protocol_version", func(c *Client, db *Data) {
 		// Python: version = obj.get('version'); if not version: return
 		if db.Version <= 0 {
-			Log(LOG_DEBUG, "invalid version number", "id", c.GetID(), "version", db.Version)
+			Log(LogDebug, "invalid version number", "id", c.ID(), "version", db.Version)
 			return
 		}
 		c.SetVersion(db.Version)
-		Log(LOG_DEBUG, "protocol version set", "id", c.GetID(), "version", db.Version)
+		Log(LogDebug, "protocol version set", "id", c.ID(), "version", db.Version)
 	})
 
 	cmd_add("generate_key", func(c *Client, db *Data) {
 		key, err := gen_key()
 		if err != nil {
-			Log_error("unable to generate key", "id", c.GetID(), "error", err)
+			LogError("unable to generate key", "id", c.ID(), "error", err)
 			c.Close()
 			return
 		}
@@ -98,7 +98,7 @@ func init() {
 			Type: "generate_key",
 			Key:  key,
 		})
-		Log(LOG_DEBUG, "key generated", "id", c.GetID(), "key", key)
+		Log(LogDebug, "key generated", "id", c.ID(), "key", key)
 		// Close after the queued JSON actually goes out on the wire,
 		// instead of guessing with a one-second sleep.
 		c.CloseGracefully()

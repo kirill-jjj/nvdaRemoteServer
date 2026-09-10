@@ -25,7 +25,7 @@ func findPidFile(args []string) string {
 			return strings.TrimPrefix(a, "-pidfile=")
 		}
 	}
-	return server.DEFAULT_PID_FILE
+	return server.DefaultPIDFile
 }
 
 func readPid(path string) (int, error) {

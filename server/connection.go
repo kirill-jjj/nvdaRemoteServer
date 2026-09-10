@@ -36,17 +36,26 @@ type Server struct {
 	Stop              context.CancelFunc
 }
 
+// Mctx is the process-wide context cancelled on OS shutdown signals
+// (SIGINT, SIGTERM, SIGQUIT); StopServers cancels it programmatically.
+//
+// A package-level context deliberately deviates from the usual
+// "pass ctx as the first parameter" rule: every goroutine in the
+// server derives from this one root signal context, and threading it
+// through Configure → Start → Server → Client → writer/pinger
+// goroutines would add a parameter to dozens of functions without
+// changing behavior. All consumers only call Mctx.Done()/Mctx.Err(),
+// which context.Context guarantees to be safe for concurrent use.
 var (
 	Mctx        context.Context
 	StopServers context.CancelFunc
 )
 
-// init wires OS signals (Ctrl+C, SIGTERM, SIGQUIT) straight into the
-// global context via signal.NotifyContext: when the operator stops the
-// server (keyboard interrupt, "kill", or the stop/restart daemon
-// commands sending SIGTERM), Mctx is cancelled automatically and every
-// server and client goroutine that derived its context from Mctx starts
-// shutting down.
+// init wires OS signals into Mctx via signal.NotifyContext: when the
+// operator stops the server (keyboard interrupt, "kill", or the
+// stop/restart daemon commands sending SIGTERM), Mctx is cancelled
+// automatically and every server and client goroutine that derived its
+// context from Mctx starts shutting down.
 func init() {
 	Mctx, StopServers = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 }
@@ -93,7 +102,7 @@ func (s *Server) accept(listener net.Listener) {
 		// Mctx.Err() is thread-safe (context.Context guarantees safe
 		// concurrent access), so no extra mutex is needed here.
 		if Mctx.Err() == nil {
-			Log(LOG_DEBUG, "server received stop signal", "address", address)
+			Log(LogDebug, "server received stop signal", "address", address)
 		}
 		listener.Close()
 		s.Done()
@@ -103,7 +112,7 @@ func (s *Server) accept(listener net.Listener) {
 		if err != nil {
 			// Mctx.Err() is thread-safe — no msl needed.
 			if Mctx.Err() == nil {
-				Log_error("error accepting connections", "address", address, "error", err)
+				LogError("error accepting connections", "address", address, "error", err)
 			}
 			s.Stop()
 			break

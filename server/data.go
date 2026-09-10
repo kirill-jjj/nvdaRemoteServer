@@ -1,5 +1,8 @@
 package server
 
+// Data represents a single NVDA Remote protocol message. The JSON
+// field names match the Python server exactly; omitempty keeps relayed
+// payloads byte-compatible with what clients expect.
 type Data struct {
 	Type              string       `json:"type"`
 	Channel           string       `json:"channel,omitempty"`
@@ -16,6 +19,8 @@ type Data struct {
 	MotdAlwaysDisplay bool         `json:"force_display,omitempty"`
 }
 
+// ClientData describes a channel member in client-list responses
+// (the "clients" field of channel_joined and client_left messages).
 type ClientData struct {
 	ID             int    `json:"id"`
 	ConnectionType string `json:"connection_type"`

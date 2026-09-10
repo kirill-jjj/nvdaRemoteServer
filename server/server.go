@@ -1,3 +1,9 @@
+// Package server implements the NVDA Remote relay server: it accepts
+// TLS and plain TCP connections from NVDA Remote clients, groups them
+// into named channels, and relays protocol messages between the
+// clients of each channel. The wire protocol, default ports, and
+// configuration file format are compatible with the original Python
+// NVDARemoteServer.
 package server
 
 import (
@@ -29,7 +35,7 @@ func AddClient(c *Client) {
 	id := int(lastID.Add(1))
 	c.SetID(id)
 	clients[c] = struct{}{}
-	Log(LOG_CONNECTION, "client connected", "id", id, "ip", c.GetIP())
+	Log(LogConnection, "client connected", "id", id, "ip", c.IP())
 }
 
 func FindClient(c *Client) bool {
@@ -43,21 +49,21 @@ func FindClient(c *Client) bool {
 // channel. The existence check and deletion happen under a single lock
 // acquisition to avoid TOCTOU (time-of-check/time-of-use) races.
 func RemoveClient(c *Client) {
-	cc := c.GetChannel()
+	cc := c.Channel()
 	if cc != nil {
 		cc.Remove(c)
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	id := c.GetID()
+	id := c.ID()
 	if _, exists := clients[c]; !exists {
-		Log(LOG_DEBUG, "client already disconnected", "id", id)
+		Log(LogDebug, "client already disconnected", "id", id)
 		return
 	}
-	Log(LOG_CONNECTION, "client disconnected", "id", id)
+	Log(LogConnection, "client disconnected", "id", id)
 	delete(clients, c)
 	if len(clients) == 0 {
-		Log(LOG_DEBUG, "no clients connected to server")
+		Log(LogDebug, "no clients connected to server")
 	}
 }
 
@@ -65,9 +71,9 @@ func AddChannel(name, password string, locked bool, c *Client) {
 	mu.Lock()
 	defer mu.Unlock()
 	if locked {
-		Log(LOG_CHANNEL, "channel created (locked)", "name", name, "has_password", password != "")
+		Log(LogChannel, "channel created (locked)", "name", name, "has_password", password != "")
 	} else {
-		Log(LOG_CHANNEL, "channel created", "name", name)
+		Log(LogChannel, "channel created", "name", name)
 	}
 	cc := NewClientChannel(name, password, locked, c)
 	channels[name] = cc
@@ -90,25 +96,25 @@ func RemoveChannel(name string) {
 		return
 	}
 	delete(channels, name)
-	Log(LOG_CHANNEL, "channel removed", "name", name)
+	Log(LogChannel, "channel removed", "name", name)
 	if len(channels) == 0 {
-		Log(LOG_DEBUG, "no channels on server")
+		Log(LogDebug, "no channels on server")
 	}
 }
 
 func MessageReceived(c *Client, pmsg []byte) {
-	id := c.GetID()
+	id := c.ID()
 	if !FindClient(c) {
-		Log_error("client not found in connection map", "id", id)
+		LogError("client not found in connection map", "id", id)
 		runtime.Goexit()
 	}
-	cc := c.GetChannel()
+	cc := c.Channel()
 	if cc != nil {
 		// The origin field is always added, mirroring the Python
 		// server, which has no option to disable it.
 		pmsg, err := JsonAddOrigin(pmsg, id)
 		if err != nil {
-			Log(LOG_DEBUG, "error adding origin to message", "id", id, "error", err)
+			Log(LogDebug, "error adding origin to message", "id", id, "error", err)
 			// Non-JSON data (raw NVDA remote protocol messages)
 			// are relayed to every client in the channel, mirroring
 			// the Python server's send_data_to_others behavior.
@@ -125,7 +131,7 @@ func MessageReceived(c *Client, pmsg []byte) {
 	// finds nobody with the same password and returns).
 	decode, err := Decode(pmsg)
 	if err != nil {
-		Log(LOG_DEBUG, "unable to parse message from client, ignoring", "id", id, "error", err)
+		Log(LogDebug, "unable to parse message from client, ignoring", "id", id, "error", err)
 		return
 	}
 	cmd_exec(c, &decode)
