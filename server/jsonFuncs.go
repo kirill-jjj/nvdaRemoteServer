@@ -24,6 +24,21 @@ func JsonAddOrigin(data []byte, id int) ([]byte, error) {
 	if i >= len(data) || data[i] != '{' {
 		return data, errors.New("not a JSON object")
 	}
+	// An object with no fields ({}, whitespace variants) must not get a
+	// trailing comma — RFC 8259 forbids it and every JSON parser would
+	// reject the result. "origin" is the only field instead.
+	j := i + 1
+	for j < len(data) && (data[j] == ' ' || data[j] == '\t' || data[j] == '\r' || data[j] == '\n') {
+		j++
+	}
+	if j < len(data) && data[j] == '}' {
+		res := make([]byte, 0, len(data)+18)
+		res = append(res, data[:i+1]...)
+		res = append(res, `"origin":`...)
+		res = strconv.AppendInt(res, int64(id), 10)
+		res = append(res, data[j:]...)
+		return res, nil
+	}
 	// Pre-allocate: "origin": + up to 10 digits for int + comma = 20 bytes max.
 	res := make([]byte, 0, len(data)+20)
 	res = append(res, data[:i+1]...)
