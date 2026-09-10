@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -18,6 +19,13 @@ var (
 )
 
 const write_sec int = 8
+
+// dropKickInterval is how many dropped messages a client may accumulate
+// before the server concludes it is hopelessly behind and disconnects
+// it. With a queue capacity of 100, a live but slow client absorbs
+// bursts without ever reaching this; a client that has stopped reading
+// hits it quickly. 500 total drops ≈ 5 full queue overflows.
+const dropKickInterval uint32 = 500
 
 type Client struct {
 	sync.RWMutex
@@ -35,6 +43,7 @@ type Client struct {
 	s                 *Server
 	closed            bool
 	sd                chan []byte
+	dropped           atomic.Uint32 // messages dropped due to a full queue
 }
 
 func (c *Client) ClearChannel() {
@@ -308,7 +317,8 @@ func (c *Client) CloseGracefully() {
 //     Context is always cancelled BEFORE c.sd is closed (see
 //     shutdown goroutine), so this case fires first and avoids
 //     the send-on-closed-channel panic in almost all cases.
-//  3. default:      channel full (client too slow), drop the message.
+//  3. default:      channel full (client too slow), drop the message
+//     and count the drop.
 //
 // The recover() is a safety net for the extremely rare race where
 // c.sd is closed between select evaluation and the actual send.
@@ -316,6 +326,12 @@ func (c *Client) CloseGracefully() {
 // This design prevents a slow client from freezing the entire
 // channel: without non-blocking send, Remove → sendAllLocked →
 // Send would block on a full channel while holding the channel lock.
+//
+// Dropping is safe for transient spikes (a momentary burst is absorbed
+// by later traffic), but a queue that stays full means the client has
+// stopped reading entirely — for a screen-reader relay every dropped
+// message is a lost key event, so a client that keeps overflowing is
+// disconnected instead of being fed garbage (see dropKickInterval).
 func (c *Client) Send(b []byte) {
 	if len(b) == 0 {
 		return
@@ -332,6 +348,16 @@ func (c *Client) Send(b []byte) {
 		// sending on a channel that will be closed momentarily.
 	default:
 		// Channel full — client is too slow or disconnected.
-		// Drop the message rather than blocking the sender.
+		// Drop the message rather than blocking the sender,
+		// and remember it: repeated overflow kills the client.
+		n := c.dropped.Add(1)
+		if n == 1 {
+			Log(LOG_DEBUG, "send queue full, dropping messages", "id", c.GetID())
+		}
+		if n%dropKickInterval == 0 {
+			Log_error("client queue hopelessly behind, disconnecting",
+				"id", c.GetID(), "dropped_total", n)
+			c.Close()
+		}
 	}
 }
