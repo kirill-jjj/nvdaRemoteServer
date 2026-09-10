@@ -1,7 +1,5 @@
 package server
 
-import "time"
-
 var command = make(map[string]func(*Client, *Data))
 
 func cmd_exists(cmd string) bool {
@@ -101,7 +99,8 @@ func init() {
 			Key:  key,
 		})
 		Log(LOG_DEBUG, "key generated", "id", c.GetID(), "key", key)
-		time.Sleep(time.Second)
-		c.Close()
+		// Close after the queued JSON actually goes out on the wire,
+		// instead of guessing with a one-second sleep.
+		c.CloseGracefully()
 	})
 }

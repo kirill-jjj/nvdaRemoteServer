@@ -147,6 +147,10 @@ func (c *Client) listen() {
 					return
 				}
 				if len(b) == 0 {
+					// Sentinel close marker: everything queued before
+					// it has already been written to the buffered
+					// writer, so flush it before tearing down.
+					_ = bw.Flush()
 					c.Close()
 					return
 				}
@@ -245,6 +249,24 @@ func (c *Client) listen() {
 		message = bytes.TrimRight(message, "\n")
 		Log(LOG_PROTOCOL, "data received from client", "id", idstr, "data", string(message))
 		MessageReceived(c, message)
+	}
+}
+
+// CloseGracefully queues an empty-slice sentinel after any pending
+// messages. The writer goroutine flushes the buffered writer and only
+// then closes the connection, guaranteeing FIFO delivery of everything
+// sent before the close request — unlike a bare Close(), which can
+// race with messages still sitting in c.sd or the write buffer.
+func (c *Client) CloseGracefully() {
+	select {
+	case c.sd <- []byte{}:
+		// Sentinel queued; the writer flushes and closes in order.
+	case <-c.ctx.Done():
+		// Already shutting down; the teardown goroutine owns the close.
+	default:
+		// Queue full (client too slow): nothing more will get out
+		// in reasonable time anyway, so close immediately.
+		c.Close()
 	}
 }
 
