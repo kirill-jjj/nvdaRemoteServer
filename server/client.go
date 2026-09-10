@@ -136,8 +136,15 @@ func (c *Client) listen() {
 	c.sd = make(chan []byte, 100)
 	go func() {
 		bw := bufio.NewWriterSize(c.conn, 16*1024)
-		flushTicker := time.NewTicker(5 * time.Millisecond)
-		defer flushTicker.Stop()
+		// Batching timer, armed only when data has been written to bw
+		// but not yet flushed (queue was non-empty). An idle client
+		// costs zero timer wakeups — unlike an always-on Ticker, which
+		// fires every 5ms per client regardless of activity.
+		flushTimer := time.NewTimer(0)
+		if !flushTimer.Stop() {
+			<-flushTimer.C
+		}
+		defer flushTimer.Stop()
 		for {
 			select {
 			case b, ok := <-c.sd:
@@ -163,14 +170,36 @@ func (c *Client) listen() {
 				}
 				_ = bw.WriteByte(EndMessage)
 				if len(c.sd) == 0 {
+					// Queue drained: flush now for lowest latency and
+					// disarm the batch timer if one was armed.
 					if err := bw.Flush(); err != nil {
 						c.logClientError("sending data", err)
 						c.Close()
 						return
 					}
+					if !flushTimer.Stop() {
+						select {
+						case <-flushTimer.C:
+						default:
+						}
+					}
+				} else if !flushTimer.Stop() {
+					// More messages queued: make sure the batch timer is
+					// armed (arm only once per burst, not per message).
+					// Stop returned false: either it already fired and its
+					// value still sits in C (drain it) or it was already
+					// stopped/drained (nothing to drain). Either way a
+					// fresh Reset is then safe.
+					select {
+					case <-flushTimer.C:
+					default:
+					}
+					flushTimer.Reset(5 * time.Millisecond)
 				}
 				c.t.Reset(time.Duration(pingTime) * time.Second)
-			case <-flushTicker.C:
+			case <-flushTimer.C:
+				// Batch window elapsed: push the accumulated burst out
+				// in one syscall.
 				if err := bw.Flush(); err != nil {
 					c.logClientError("flushing data", err)
 					c.Close()
